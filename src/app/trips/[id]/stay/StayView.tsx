@@ -274,12 +274,6 @@ function StayCard({
             <span>
               {ci.dow} {ci.d} {ci.mon} → {co.dow} {co.d} {co.mon} · {n} {n === 1 ? "night" : "nights"}
             </span>
-            {platform && (
-              <span className="flex items-center gap-1 rounded-full bg-bg px-2 py-0.5 text-[11px] font-semibold text-ink">
-                <span className="size-1.5 rounded-full" style={{ background: platform.color }} />
-                {platform.label}
-              </span>
-            )}
             {openTodos > 0 && (
               <span className="rounded-full bg-warn/30 px-2 py-0.5 text-[11px] font-semibold text-warn-ink">
                 {openTodos} to-do{openTodos === 1 ? "" : "s"}
@@ -315,8 +309,9 @@ function StayCard({
 
           <Actions s={s} onDriver={onDriver} onToast={onToast} />
 
-          {(s.host || s.booking_ref || s.door_code || s.wifi) && (
+          {(platform || s.host || s.booking_ref || s.door_code || s.wifi) && (
             <dl className="flex flex-col gap-2 text-[13px]">
+              {platform && <Row label="Booked on">{platform.label}</Row>}
               {s.host && <Row label="Host">{s.host}</Row>}
               {s.booking_ref && (
                 <Row label="Booking ref">
