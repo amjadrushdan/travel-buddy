@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { Field, inputCls, Masked, SheetActions, SheetForm, TzSelect, useToast } from "@/components/ui";
 import { airport } from "@/lib/airports";
 import { AirlineLogo } from "@/components/AirlineLogo";
+import { DocumentList } from "@/components/DocumentList";
+import type { TripDocument } from "@/lib/bookings";
 import { airlineName } from "@/lib/airlines";
 import { dayAt, duration, timeAt, tzLabel, utcToZonedInput } from "@/lib/time";
 import { flightAwareUrl, type Flight } from "@/lib/travel";
@@ -23,6 +25,7 @@ export function FlightsView({
   canEdit,
   live,
   liveBeforeMs,
+  docs,
   renderedAt,
 }: {
   tripId: string;
@@ -33,6 +36,7 @@ export function FlightsView({
   canEdit: boolean;
   live: Record<string, LiveStatus | null>;
   liveBeforeMs: number | null;
+  docs: TripDocument[];
   renderedAt: number;
 }) {
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -75,6 +79,9 @@ export function FlightsView({
           live={live[f.id] ?? null}
           liveBeforeMs={liveBeforeMs}
           renderedAt={renderedAt}
+          tripId={tripId}
+          canEdit={canEdit}
+          docs={docs.filter((d) => d.flight_id === f.id)}
           onEdit={canEdit ? () => setSheet({ mode: "edit", flight: f }) : undefined}
         />
       ))}
@@ -100,6 +107,9 @@ function FlightCard({
   live,
   liveBeforeMs,
   renderedAt,
+  tripId,
+  canEdit,
+  docs,
   onEdit,
 }: {
   f: Flight;
@@ -107,6 +117,9 @@ function FlightCard({
   live: LiveStatus | null;
   liveBeforeMs: number | null;
   renderedAt: number;
+  tripId: string;
+  canEdit: boolean;
+  docs: TripDocument[];
   onEdit?: () => void;
 }) {
   const from = airport(f.from_airport);
@@ -169,6 +182,11 @@ function FlightCard({
           Track on FlightAware ↗
         </a>
       </div>
+      {(docs.length > 0 || canEdit) && (
+        <div className="border-t border-line px-4 py-3">
+          <DocumentList tripId={tripId} parent={{ flight_id: f.id }} docs={docs} canEdit={canEdit} title="Boarding pass & e-ticket" />
+        </div>
+      )}
       {onEdit && (
         <button type="button" onClick={onEdit} className="w-full border-t border-line py-2.5 text-[13px] font-semibold">
           Edit flight

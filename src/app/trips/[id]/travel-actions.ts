@@ -82,6 +82,7 @@ export async function saveFlight(tripId: string, id: string | null, fd: FormData
 
 export async function deleteFlight(tripId: string, id: string): Promise<ActionResult> {
   const supabase = await createClient();
+  await removeDocFiles(supabase, "flight_id", id, tripId);
   const { error, count } = await supabase.from("flights").delete({ count: "exact" }).eq("id", id).eq("trip_id", tripId);
   if (error) return { error: friendly(error) };
   if (!count) return { error: "You can't delete this flight." };
@@ -201,6 +202,7 @@ export async function saveStay(tripId: string, id: string | null, fd: FormData):
 
 export async function deleteStay(tripId: string, id: string): Promise<ActionResult> {
   const supabase = await createClient();
+  await removeDocFiles(supabase, "stay_id", id, tripId);
   const { error, count } = await supabase.from("stays").delete({ count: "exact" }).eq("id", id).eq("trip_id", tripId);
   if (error) return { error: friendly(error) };
   if (!count) return { error: "You can't delete this stay." };
@@ -259,4 +261,10 @@ export async function findLocation(query: string): Promise<{ lat?: number; lng?:
     }
   }
   return { error: "Couldn't find that address. Try a shorter one (area, city)." };
+}
+
+/** Delete the storage files of documents attached to a flight/stay (their rows cascade). */
+async function removeDocFiles(supabase: Awaited<ReturnType<typeof createClient>>, column: "flight_id" | "stay_id", id: string, tripId: string) {
+  const { data } = await supabase.from("documents").select("path").eq(column, id).eq("trip_id", tripId);
+  if (data?.length) await supabase.storage.from("trip-docs").remove(data.map((d) => d.path as string));
 }

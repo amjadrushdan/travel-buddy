@@ -8,7 +8,7 @@
 // - The page can ask the worker to "warm" a list of same-origin paths (the trip's other tabs)
 //   so they are saved too, and to "clear" saved pages (e.g. after leaving a trip).
 
-const VERSION = "v4";
+const VERSION = "v5";
 const PAGES = `tb-pages-${VERSION}`;
 const ASSETS = `tb-assets-${VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -142,7 +142,9 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(page(request));
     return;
   }
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/airline-logo/")) {
+  // Trip documents never change under the same id: keep any opened document for offline.
+  const isDoc = /^\/trips\/[0-9a-f-]{36}\/docs\/[0-9a-f-]{36}$/.test(url.pathname);
+  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/airline-logo/") || isDoc) {
     event.respondWith(asset(request));
     return;
   }

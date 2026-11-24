@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { DocumentList } from "@/components/DocumentList";
 import { LinkedText } from "@/components/LinkedText";
+import type { TripDocument } from "@/lib/bookings";
 import { Field, inputCls, Masked, SheetActions, SheetForm, TzSelect, useDeviceTz, useOnline, useToast } from "@/components/ui";
 import { dateRange, dayParts } from "@/lib/format";
 import { dateAt, dayAt, nights, timeAt, tzLabel, utcToZonedInput } from "@/lib/time";
@@ -41,6 +43,7 @@ export function StayView({
   tripEnd,
   stays,
   todos,
+  docs,
   suggestedTz,
   canEdit,
   renderedAt,
@@ -51,6 +54,7 @@ export function StayView({
   tripEnd: string | null;
   stays: Stay[];
   todos: StayTodo[];
+  docs: TripDocument[];
   suggestedTz: string | null;
   canEdit: boolean;
   renderedAt: number;
@@ -83,6 +87,7 @@ export function StayView({
       tripId={tripId}
       color={colorOf.get(s.id)!}
       todos={todosOf(s.id)}
+      docs={docs.filter((d) => d.stay_id === s.id)}
       canEdit={canEdit}
       kicker={opts.kicker}
       defaultOpen={opts.defaultOpen}
@@ -232,6 +237,7 @@ function StayCard({
   tripId,
   color,
   todos,
+  docs,
   canEdit,
   kicker,
   defaultOpen = false,
@@ -244,6 +250,7 @@ function StayCard({
   tripId: string;
   color: string;
   todos: StayTodo[];
+  docs: TripDocument[];
   canEdit: boolean;
   kicker?: string;
   defaultOpen?: boolean;
@@ -339,6 +346,8 @@ function StayCard({
           )}
 
           <Todos tripId={tripId} stayId={s.id} todos={todos} canEdit={canEdit} onToast={onToast} />
+
+          <DocumentList tripId={tripId} parent={{ stay_id: s.id }} docs={docs} canEdit={canEdit} title="Booking confirmation & files" />
 
           {s.notes && (
             <div className="flex flex-col gap-1">
