@@ -3,7 +3,8 @@ import { Avatar } from "@/components/Avatar";
 import { getTrip } from "@/lib/data/trips";
 import { createClient } from "@/lib/supabase/server";
 import { roleLabel } from "@/lib/format";
-import { leaveTrip, removeMember } from "./actions";
+import { leaveTrip } from "./actions";
+import { RemoveMemberButton } from "./RemoveMemberButton";
 import { InvitePanel, type Invite } from "./InvitePanel";
 
 export default async function MembersPage({ params }: { params: Promise<{ id: string }> }) {
@@ -45,13 +46,7 @@ export default async function MembersPage({ params }: { params: Promise<{ id: st
               <span className="rounded-sm border border-line px-[7px] py-[3px] font-mono text-[11px] text-muted">
                 {roleLabel(m.role)}
               </span>
-              {canRemove && (
-                <form action={removeMember.bind(null, trip.id, m.user_id)}>
-                  <button className="px-1 text-[13px] font-semibold text-bad" aria-label={`Remove ${m.profiles?.name ?? "member"}`}>
-                    Remove
-                  </button>
-                </form>
-              )}
+              {canRemove && <RemoveMemberButton tripId={trip.id} userId={m.user_id} name={m.profiles?.name ?? "member"} />}
             </li>
           );
         })}

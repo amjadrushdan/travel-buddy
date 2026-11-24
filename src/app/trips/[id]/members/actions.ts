@@ -4,17 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-/** Owner removes another member. RLS enforces who may delete which row. */
-export async function removeMember(tripId: string, userId: string) {
+/** Owner removes another member. RLS enforces who may delete which row (owner only, never the owner). */
+export async function removeMember(tripId: string, userId: string): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { error, count } = await supabase
     .from("trip_members")
     .delete({ count: "exact" })
     .eq("trip_id", tripId)
     .eq("user_id", userId);
-  if (error) throw new Error(error.message);
-  if (!count) throw new Error("You can't remove this member.");
-  revalidatePath(`/trips/${tripId}/members`);
+  if (error) return { error: error.message };
+  if (!count) return { error: "Only the trip owner can remove members." };
+  revalidatePath(`/trips/${tripId}`, "layout");
+  return {};
 }
 
 export type InviteResult = { error?: string };
