@@ -3,7 +3,6 @@ import { getTrip } from "@/lib/data/trips";
 
 const TABS: Record<string, { title: string; empty: string }> = {
   flights: { title: "Flights", empty: "No flights added yet." },
-  plan: { title: "Plan", empty: "Nothing planned yet." },
   stay: { title: "Stay", empty: "No stays added yet." },
   guide: { title: "Guide", empty: "No guide notes yet." },
 };

@@ -2,12 +2,15 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { AvatarStack } from "@/components/Avatar";
 import { JoinedToast } from "@/components/JoinedToast";
+import { TodayCard } from "@/components/TodayCard";
+import { listItinerary } from "@/lib/data/itinerary";
 import { getTrip } from "@/lib/data/trips";
+import { tripDays } from "@/lib/itinerary";
 import { daysUntil, formatDateRange } from "@/lib/format";
 
 export default async function TripHomePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { trip, members } = await getTrip(id);
+  const [{ trip, members }, items] = await Promise.all([getTrip(id), listItinerary(id)]);
   const days = daysUntil(trip.start_date);
   const subtitle = [trip.destination, formatDateRange(trip.start_date, trip.end_date)].filter(Boolean).join(" · ");
   const kicker = days === 0 ? "Departure day" : days !== null && days < 0 ? "On the trip" : "Next trip";
@@ -47,17 +50,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
         <span className="text-sm text-muted">Flights will show here as a boarding pass.</span>
       </Link>
 
-      <div className="flex flex-col gap-2.5">
-        <div className="flex items-baseline justify-between">
-          <span className="label">Today</span>
-          <Link href={`/trips/${trip.id}/plan`} className="text-[13px] font-semibold">
-            Full plan ›
-          </Link>
-        </div>
-        <div className="rounded-card border-[1.5px] border-dashed border-line p-4 text-center text-sm text-muted">
-          Nothing planned yet.
-        </div>
-      </div>
+      <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} />
 
       <Suspense>
         <JoinedToast tripName={trip.name} />
