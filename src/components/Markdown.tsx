@@ -1,13 +1,23 @@
 // A small, safe markdown renderer for guide notes.
 // It builds React elements (never raw HTML), so a note can't inject scripts.
 // Supports: paragraphs, "- "/"* " bullet lists, "1. " numbered lists, "## " headings,
-// **bold**, *italic*, `code`, and [links](https://…) (https only).
+// "| a | b |" tables (first row = header, "|---|" row optional), **bold**, *italic*, `code`,
+// and [links](https://…) (https only).
 import { Fragment, type ReactNode } from "react";
 
 type Block =
   | { kind: "p"; text: string }
   | { kind: "h"; text: string }
-  | { kind: "ul" | "ol"; items: string[] };
+  | { kind: "ul" | "ol"; items: string[] }
+  | { kind: "table"; rows: string[][] };
+
+const cells = (line: string) =>
+  line
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((c) => c.trim());
+const isDivider = (line: string) => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(line);
 
 export function parseBlocks(md: string): Block[] {
   const blocks: Block[] = [];
@@ -24,6 +34,12 @@ export function parseBlocks(md: string): Block[] {
     const head = /^#{1,6}\s+(.*)$/.exec(line);
     if (!line) {
       flush();
+    } else if (line.startsWith("|")) {
+      flush();
+      if (isDivider(line)) continue;
+      const last = blocks[blocks.length - 1];
+      if (last && last.kind === "table") last.rows.push(cells(line));
+      else blocks.push({ kind: "table", rows: [cells(line)] });
     } else if (head) {
       flush();
       blocks.push({ kind: "h", text: head[1] });
@@ -86,6 +102,35 @@ export function Markdown({ text, className = "" }: { text: string; className?: s
       {blocks.map((b, i) => {
         if (b.kind === "h") return <h3 key={i} className="text-[15px] font-semibold text-ink">{renderInline(b.text)}</h3>;
         if (b.kind === "p") return <p key={i} className="text-pretty">{renderInline(b.text)}</p>;
+        if (b.kind === "table") {
+          const [head, ...body] = b.rows;
+          return (
+            <div key={i} className="-mx-1 overflow-x-auto">
+              <table className="w-full border-collapse text-[13px] text-ink">
+                <thead>
+                  <tr>
+                    {head.map((c, j) => (
+                      <th key={j} className="border-b border-line px-1 py-1.5 text-left text-[11px] font-semibold text-muted">
+                        {renderInline(c)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {body.map((row, r) => (
+                    <tr key={r} className="border-b border-line last:border-b-0">
+                      {row.map((c, j) => (
+                        <td key={j} className={`px-1 py-1.5 tabular-nums ${j === 0 ? "font-semibold whitespace-nowrap" : "font-mono"}`}>
+                          {renderInline(c)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
         const List = b.kind === "ul" ? "ul" : "ol";
         return (
           <List key={i} className={`flex flex-col gap-1.5 pl-5 ${b.kind === "ul" ? "list-disc" : "list-decimal"} marker:text-muted`}>
