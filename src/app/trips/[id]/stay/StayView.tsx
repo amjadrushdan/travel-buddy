@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { LinkedText } from "@/components/LinkedText";
 import { Field, inputCls, Masked, SheetActions, SheetForm, TzSelect, useDeviceTz, useToast } from "@/components/ui";
 import { dayAt, nights, timeAt, tzLabel, utcToZonedInput } from "@/lib/time";
 import { stayMapUrl, type Stay } from "@/lib/travel";
@@ -82,24 +83,24 @@ function StayCard({ s, onEdit }: { s: Stay; onEdit?: () => void }) {
   const n = nights(s.check_in, s.check_out, s.tz);
   const label = tzLabel(s.tz, s.check_in);
   return (
-    <article className="flex flex-col gap-3.5 rounded-card border border-line bg-surface p-4">
-      <div className="flex flex-col gap-[3px]">
+    <article className="flex min-w-0 flex-col gap-3.5 rounded-card border border-line bg-surface p-4">
+      <div className="flex min-w-0 flex-col gap-[3px]">
         <span className="label">
           {n} {n === 1 ? "night" : "nights"} · {label}
         </span>
-        <span className="text-[19px] font-semibold">{s.name}</span>
-        {s.address && <span className="text-[13px] text-pretty text-muted">{s.address}</span>}
+        <span className="text-[19px] font-semibold text-pretty [overflow-wrap:anywhere]">{s.name}</span>
+        {s.address && <span className="text-[13px] text-pretty text-muted [overflow-wrap:anywhere]">{s.address}</span>}
       </div>
 
       <div className="grid grid-cols-2 rounded-sm border border-line">
-        <div className="flex flex-col gap-0.5 border-r border-line px-3 py-2.5">
+        <div className="flex min-w-0 flex-col gap-0.5 border-r border-line px-3 py-2.5">
           <span className="text-[11px] text-muted">Check-in</span>
           <span className="font-mono text-[22px] font-medium">{timeAt(s.check_in, s.tz)}</span>
           <span className="text-xs text-muted">
             {dayAt(s.check_in, s.tz)} · {label}
           </span>
         </div>
-        <div className="flex flex-col gap-0.5 px-3 py-2.5">
+        <div className="flex min-w-0 flex-col gap-0.5 px-3 py-2.5">
           <span className="text-[11px] text-muted">Check-out</span>
           <span className="font-mono text-[22px] font-medium">{timeAt(s.check_out, s.tz)}</span>
           <span className="text-xs text-muted">
@@ -115,7 +116,7 @@ function StayCard({ s, onEdit }: { s: Stay; onEdit?: () => void }) {
         </div>
       )}
 
-      {s.notes && <p className="text-[13px] leading-normal whitespace-pre-line text-pretty text-muted">{s.notes}</p>}
+      {s.notes && <LinkedText text={s.notes} className="text-[13px] leading-normal text-muted" />}
 
       <a
         href={stayMapUrl(s)}

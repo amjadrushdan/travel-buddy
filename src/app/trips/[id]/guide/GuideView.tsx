@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { CategoryIcon } from "@/components/CategoryIcon";
 import { Markdown } from "@/components/Markdown";
 import { Field, inputCls, SheetActions, SheetForm, useToast } from "@/components/ui";
 import { CATEGORIES, categoryLabel, type Category, type Guide } from "@/lib/guides";
@@ -55,10 +56,11 @@ export function GuideView({
               role="tab"
               aria-selected={cat === c.key}
               onClick={() => setCat(c.key)}
-              className={`flex-none rounded-full border px-3.5 py-1.5 text-[13px] font-semibold ${
+              className={`flex flex-none items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] font-semibold ${
                 cat === c.key ? "border-ink bg-ink text-white" : "border-line bg-surface"
               }`}
             >
+              {c.key !== "all" && <CategoryIcon category={c.key} size={15} />}
               {c.label}
             </button>
           ))}
@@ -87,9 +89,14 @@ export function GuideView({
                 onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))}
                 className="flex w-full items-center justify-between gap-3 p-4 text-left"
               >
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="label">{categoryLabel(g.category)}</span>
-                  <span className="text-[17px] font-semibold">{g.title}</span>
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="flex size-10 flex-none items-center justify-center rounded-sm bg-bg text-ink">
+                    <CategoryIcon category={g.category} size={22} />
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="label">{categoryLabel(g.category)}</span>
+                    <span className="text-[17px] font-semibold text-pretty [overflow-wrap:anywhere]">{g.title}</span>
+                  </span>
                 </span>
                 <span className="flex-none font-mono text-xl text-muted" aria-hidden>
                   {isOpen ? "−" : "+"}

@@ -82,7 +82,7 @@ export function renderInline(text: string): ReactNode[] {
 export function Markdown({ text, className = "" }: { text: string; className?: string }) {
   const blocks = parseBlocks(text);
   return (
-    <div className={`flex flex-col gap-2.5 text-sm leading-normal ${className}`}>
+    <div className={`flex min-w-0 flex-col gap-2.5 text-sm leading-normal [overflow-wrap:anywhere] ${className}`}>
       {blocks.map((b, i) => {
         if (b.kind === "h") return <h3 key={i} className="text-[15px] font-semibold text-ink">{renderInline(b.text)}</h3>;
         if (b.kind === "p") return <p key={i} className="text-pretty">{renderInline(b.text)}</p>;

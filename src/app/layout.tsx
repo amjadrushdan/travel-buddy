@@ -20,6 +20,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Use the whole screen (under the iPhone home indicator / Android gesture bar) and report
+  // its safe-area sizes, so the bottom tab bar can fill to the edge.
+  viewportFit: "cover",
   themeColor: "#F4F3EF",
 };
 

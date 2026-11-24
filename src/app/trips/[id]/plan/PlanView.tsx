@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { dayParts, formatDay, localTime, localToday, shortTime } from "@/lib/format";
+import { LinkedText } from "@/components/LinkedText";
 import { mapLink, nowIndex, type ItineraryItem } from "@/lib/itinerary";
 import { deleteItem, reorderDay, saveItem } from "./actions";
 
@@ -215,12 +216,12 @@ export function PlanView({ tripId, tripName, days, items, canEdit, requestedDay 
                         <button
                           type="button"
                           onClick={() => setSheet({ mode: "edit", item: it })}
-                          className="text-left text-[15px] font-medium text-pretty"
+                          className="text-left text-[15px] font-medium text-pretty [overflow-wrap:anywhere]"
                         >
                           {it.title}
                         </button>
                       ) : (
-                        <span className="text-[15px] font-medium text-pretty">{it.title}</span>
+                        <span className="text-[15px] font-medium text-pretty [overflow-wrap:anywhere]">{it.title}</span>
                       )}
                       {isNow && (
                         <span className="rounded-sm bg-now px-1.5 py-[3px] font-mono text-[10px] font-semibold tracking-[.06em] text-white">
@@ -229,11 +230,11 @@ export function PlanView({ tripId, tripName, days, items, canEdit, requestedDay 
                       )}
                     </span>
                     {link && (
-                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-[13px] text-muted">
+                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-[13px] text-muted [overflow-wrap:anywhere]">
                         {it.place || "Open in Maps"} ↗
                       </a>
                     )}
-                    {it.notes && <p className="text-[13px] whitespace-pre-line text-muted">{it.notes}</p>}
+                    {it.notes && <LinkedText text={it.notes} className="text-[13px] text-muted" />}
                   </div>
                   {reorder ? (
                     <div className="flex flex-col gap-1 pt-2">

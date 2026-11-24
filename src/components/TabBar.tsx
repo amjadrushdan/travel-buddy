@@ -47,7 +47,9 @@ export function TabBar({ tripId }: { tripId: string }) {
   const base = `/trips/${tripId}`;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full max-w-[480px] border-t border-line bg-surface px-2 pb-[max(26px,env(safe-area-inset-bottom))]">
+    // Sits flush on the screen's bottom edge. The padding grows with the phone's safe area
+    // (iPhone home indicator, Android gesture bar), which needs viewport-fit=cover in layout.tsx.
+    <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full max-w-[480px] border-t border-line bg-surface px-2 pb-[max(18px,calc(env(safe-area-inset-bottom)+6px))]">
       <ul className="grid grid-cols-5">
         {TABS.map((t) => {
           const href = t.key ? `${base}/${t.key}` : base;

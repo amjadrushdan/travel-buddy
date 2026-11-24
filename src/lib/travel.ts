@@ -35,9 +35,14 @@ export function flightAwareUrl(flightNo: string): string {
   return `https://www.flightaware.com/live/flight/${encodeURIComponent(flightNo.replace(/\s+/g, ""))}`;
 }
 
+/**
+ * Google Maps link for a stay. A pasted map link wins. Otherwise search the ADDRESS only:
+ * names like "Tokyo Airbnb (Ōjima, Koto)" aren't real place names and send the search astray,
+ * while a full street address resolves to the exact building. Name is the fallback.
+ */
 export function stayMapUrl(s: Pick<Stay, "map_url" | "address" | "name">): string {
   if (s.map_url) return s.map_url;
-  const q = [s.name, s.address].filter(Boolean).join(", ");
+  const q = s.address?.trim() || s.name;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
