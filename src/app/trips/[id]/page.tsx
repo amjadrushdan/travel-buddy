@@ -4,6 +4,7 @@ import { AvatarStack } from "@/components/Avatar";
 import { CoverPicker } from "@/components/CoverPicker";
 import { EditTripButton } from "@/components/EditTripButton";
 import { TripLinks } from "@/components/TripLinks";
+import { BigCountdown, DaysChip, TripKicker } from "@/components/TripCountdown";
 import { JoinedToast } from "@/components/JoinedToast";
 import { NextFlightCard } from "@/components/NextFlightCard";
 import { TodayCard } from "@/components/TodayCard";
@@ -36,7 +37,6 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
   const live = next ? await getFlightStatuses([next]) : {};
   const days = daysUntil(trip.start_date);
   const subtitle = [trip.destination, formatDateRange(trip.start_date, trip.end_date)].filter(Boolean).join(" · ");
-  const kicker = days === 0 ? "Departure day" : days !== null && days < 0 ? "On the trip" : "Next trip";
   const canEdit = me.role !== "viewer";
   const cover = coverSrc(trip.id, trip.cover_url);
   const names = members.map((m) => m.profiles?.name ?? null);
@@ -75,12 +75,13 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
             <div className={`mt-auto flex items-end justify-between gap-3 ${next ? "mb-[236px]" : "mb-6"}`}>
               <div className="flex min-w-0 flex-col gap-1.5 [text-shadow:0_1px_6px_rgba(0,0,0,.35)]">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-[11px] tracking-[.1em] uppercase opacity-90">{kicker}</span>
-                  {days !== null && days > 0 && (
-                    <span className="rounded-sm bg-warn px-1.5 py-0.5 font-mono text-[11px] font-semibold text-ink [text-shadow:none]">
-                      {days} {days === 1 ? "day" : "days"} to go
-                    </span>
-                  )}
+                  <TripKicker
+                    start={trip.start_date}
+                    end={trip.end_date}
+                    serverDays={days}
+                    className="font-mono text-[11px] tracking-[.1em] uppercase opacity-90"
+                  />
+                  <DaysChip start={trip.start_date} serverDays={days} />
                 </div>
                 <h1 className="text-[40px] leading-[1.02] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{trip.name}</h1>
                 {subtitle && <span className="text-sm opacity-90">{subtitle}</span>}
@@ -117,7 +118,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="label">{kicker}</span>
+          <TripKicker start={trip.start_date} end={trip.end_date} serverDays={days} className="label" />
           <h1 className="text-[32px] leading-[1.05] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{trip.name}</h1>
           <span className="text-sm text-muted">{subtitle}</span>
         </div>
@@ -127,12 +128,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
         </Link>
       </div>
 
-      {days !== null && days > 0 && (
-        <div className="flex items-baseline gap-2.5 border-b border-line pb-1">
-          <span className="font-mono text-[64px] leading-none font-medium tracking-[-0.04em]">{days}</span>
-          <span className="text-[15px] text-muted">{days === 1 ? "day to go" : "days to go"}</span>
-        </div>
-      )}
+      <BigCountdown start={trip.start_date} serverDays={days} />
 
       {flightCard}
 
