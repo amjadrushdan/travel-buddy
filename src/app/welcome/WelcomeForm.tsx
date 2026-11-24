@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useTurnstile } from "@/components/Turnstile";
 import { safeNext } from "@/lib/format";
 
 export function WelcomeForm() {
@@ -11,17 +12,21 @@ export function WelcomeForm() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bot = useTurnstile();
 
   async function start(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed || bot.waiting) return;
     setBusy(true);
     setError(null);
-    const { error } = await createClient().auth.signInAnonymously({ options: { data: { name: trimmed } } });
+    const { error } = await createClient().auth.signInAnonymously({
+      options: { data: { name: trimmed }, captchaToken: bot.token },
+    });
     if (error) {
       setBusy(false);
       setError(error.message);
+      bot.reset(); // each bot-check token works once
       return;
     }
     router.replace(next);
@@ -42,8 +47,13 @@ export function WelcomeForm() {
         onChange={(e) => setName(e.target.value)}
         className="rounded-sm border border-line bg-surface p-3.5 text-base outline-none focus:border-ink"
       />
-      <button type="submit" disabled={busy || !name.trim()} className="w-full rounded-sm bg-ink p-[15px] text-base font-semibold text-white">
-        {busy ? "Starting…" : "Start a trip"}
+      {bot.node}
+      <button
+        type="submit"
+        disabled={busy || !name.trim() || bot.waiting}
+        className="w-full rounded-sm bg-ink p-[15px] text-base font-semibold text-white"
+      >
+        {busy ? "Starting…" : bot.waiting ? "Checking you're not a bot…" : "Start a trip"}
       </button>
       <p className="text-center text-xs text-pretty text-muted">
         Got an invite link? Open it instead to join your group&apos;s trip.

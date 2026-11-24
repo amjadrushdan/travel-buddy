@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useTurnstile } from "@/components/Turnstile";
 
 type Props = {
   token: string;
@@ -18,6 +19,8 @@ export function JoinForm({ token, tripId, tripName, defaultName, hasSession, alr
   const [name, setName] = useState(defaultName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bot = useTurnstile(); // only used when this phone has no session yet
+  const needsCheck = !hasSession && bot.waiting;
 
   if (alreadyMember) {
     return (
@@ -37,16 +40,19 @@ export function JoinForm({ token, tripId, tripName, defaultName, hasSession, alr
   async function join(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed || needsCheck) return;
     setBusy(true);
     setError(null);
     const supabase = createClient();
 
     if (!hasSession) {
-      const { error } = await supabase.auth.signInAnonymously({ options: { data: { name: trimmed } } });
+      const { error } = await supabase.auth.signInAnonymously({
+        options: { data: { name: trimmed }, captchaToken: bot.token },
+      });
       if (error) {
         setBusy(false);
         setError(error.message);
+        bot.reset(); // each bot-check token works once
         return;
       }
     }
@@ -75,8 +81,13 @@ export function JoinForm({ token, tripId, tripName, defaultName, hasSession, alr
         onChange={(e) => setName(e.target.value)}
         className="rounded-sm border border-line bg-surface p-3.5 text-base outline-none focus:border-ink"
       />
-      <button type="submit" disabled={busy || !name.trim()} className="w-full rounded-sm bg-ink p-[15px] text-base font-semibold text-white">
-        {busy ? "Joining…" : "Join trip"}
+      {!hasSession && bot.node}
+      <button
+        type="submit"
+        disabled={busy || !name.trim() || needsCheck}
+        className="w-full rounded-sm bg-ink p-[15px] text-base font-semibold text-white"
+      >
+        {busy ? "Joining…" : needsCheck ? "Checking you're not a bot…" : "Join trip"}
       </button>
       <span className="text-center text-xs text-pretty text-muted">
         No account needed. This phone remembers you.
