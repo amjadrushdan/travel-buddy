@@ -106,11 +106,11 @@ export function Markdown({ text, className = "" }: { text: string; className?: s
           const [head, ...body] = b.rows;
           return (
             <div key={i} className="-mx-1 overflow-x-auto">
-              <table className="w-full border-collapse text-[13px] text-ink">
+              <table className="w-full border-collapse text-[12px] text-ink">
                 <thead>
                   <tr>
                     {head.map((c, j) => (
-                      <th key={j} className="border-b border-line px-1 py-1.5 text-left text-[11px] font-semibold text-muted">
+                      <th key={j} className="border-b border-line px-[3px] py-1.5 text-left text-[10.5px] font-semibold text-muted">
                         {renderInline(c)}
                       </th>
                     ))}
@@ -120,7 +120,7 @@ export function Markdown({ text, className = "" }: { text: string; className?: s
                   {body.map((row, r) => (
                     <tr key={r} className="border-b border-line last:border-b-0">
                       {row.map((c, j) => (
-                        <td key={j} className={`px-1 py-1.5 tabular-nums ${j === 0 ? "font-semibold whitespace-nowrap" : "font-mono"}`}>
+                        <td key={j} className={`px-[3px] py-1.5 tabular-nums ${j === 0 ? "font-semibold whitespace-nowrap" : "font-mono"}`}>
                           {renderInline(c)}
                         </td>
                       ))}
