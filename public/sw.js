@@ -8,7 +8,7 @@
 // - The page can ask the worker to "warm" a list of same-origin paths (the trip's other tabs)
 //   so they are saved too, and to "clear" saved pages (e.g. after leaving a trip).
 
-const VERSION = "v2";
+const VERSION = "v3";
 const PAGES = `tb-pages-${VERSION}`;
 const ASSETS = `tb-assets-${VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -74,6 +74,10 @@ async function saveAssetsOf(htmlResponse) {
         if (res && res.ok) await cache.put(req, res);
       }),
     );
+    // The trip's cover photo, so Home looks the same offline.
+    for (const path of new Set(html.match(COVER_RE) || [])) {
+      await cover(new Request(new URL(path, self.location.origin))).catch(() => null);
+    }
   } catch {
     /* best effort */
   }
@@ -105,6 +109,26 @@ async function asset(request) {
   return res;
 }
 
+// Cover photos: /trips/<id>/cover?v=<version>. Each version is a new URL, so cache-first is
+// safe; when a new version is saved, older versions of that trip's cover are dropped.
+const COVER_RE = /\/trips\/[0-9a-f-]{36}\/cover\?v=\d+/g;
+const isCover = (url) => /^\/trips\/[0-9a-f-]{36}\/cover$/.test(url.pathname) && url.searchParams.has("v");
+
+async function cover(request) {
+  const cache = await caches.open(ASSETS);
+  const hit = await cache.match(request);
+  if (hit) return hit;
+  const res = await fetch(request);
+  if (res.ok && res.type === "basic") {
+    const path = new URL(request.url).pathname;
+    for (const old of await cache.keys()) {
+      if (new URL(old.url).pathname === path) await cache.delete(old);
+    }
+    await cache.put(request, res.clone());
+  }
+  return res;
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -117,6 +141,10 @@ self.addEventListener("fetch", (event) => {
   }
   if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(asset(request));
+    return;
+  }
+  if (isCover(url)) {
+    event.respondWith(cover(request));
   }
 });
 
