@@ -1,0 +1,150 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { isTimezone, zonedToUtc } from "@/lib/time";
+
+export type ActionResult = { error?: string };
+
+const LOCAL_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function revalidate(tripId: string) {
+  revalidatePath(`/trips/${tripId}`, "layout");
+}
+
+function friendly(error: { code?: string; message: string }) {
+  if (error.code === "42501") return "Only owners and editors can change this.";
+  if (error.code === "23514" || error.code === "22023") return "Some details don't look right. Check the form.";
+  return error.message;
+}
+
+const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
+
+/** Wall-clock time at a place → ISO instant, or an error message. */
+function toInstant(local: string, tz: string, what: string): { iso: string } | { error: string } {
+  if (!LOCAL_RE.test(local)) return { error: `Pick the ${what} date and time.` };
+  if (!isTimezone(tz)) return { error: `Pick the ${what} timezone.` };
+  return { iso: zonedToUtc(local, tz).toISOString() };
+}
+
+// ---------------------------------------------------------------- flights
+
+function readFlight(fd: FormData) {
+  const flightNo = str(fd, "flight_no").toUpperCase().replace(/\s+/g, " ");
+  const from = str(fd, "from_airport").toUpperCase();
+  const to = str(fd, "to_airport").toUpperCase();
+  const airline = str(fd, "airline");
+  const pnr = str(fd, "pnr").toUpperCase();
+  const passengers = fd.getAll("passengers").map(String).filter((p) => UUID_RE.test(p));
+
+  if (!/^[A-Z0-9]{2,3} ?[0-9]{1,4}[A-Z]?$/.test(flightNo)) return { error: "Flight number looks like MH 88." } as const;
+  if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to)) return { error: "Airports are 3-letter codes, like KUL." } as const;
+  if (airline.length > 60) return { error: "Keep the airline under 60 characters." } as const;
+  if (pnr && !/^[A-Z0-9]{5,8}$/.test(pnr)) return { error: "Booking code (PNR) is 5–8 letters or digits." } as const;
+
+  const dep = toInstant(str(fd, "depart_local"), str(fd, "depart_tz"), "departure");
+  if ("error" in dep) return dep;
+  const arr = toInstant(str(fd, "arrive_local"), str(fd, "arrive_tz"), "arrival");
+  if ("error" in arr) return arr;
+  const mins = (Date.parse(arr.iso) - Date.parse(dep.iso)) / 60_000;
+  if (mins <= 0) return { error: "Arrival must be after departure (check the timezones)." } as const;
+  if (mins >= 30 * 60) return { error: "That flight is over 30 hours. Check the dates." } as const;
+
+  return {
+    values: {
+      airline: airline || null,
+      flight_no: flightNo,
+      from_airport: from,
+      to_airport: to,
+      depart_at: dep.iso,
+      depart_tz: str(fd, "depart_tz"),
+      arrive_at: arr.iso,
+      arrive_tz: str(fd, "arrive_tz"),
+      pnr: pnr || null,
+      passengers,
+    },
+  } as const;
+}
+
+export async function saveFlight(tripId: string, id: string | null, fd: FormData): Promise<ActionResult> {
+  const parsed = readFlight(fd);
+  if ("error" in parsed) return { error: parsed.error };
+  const supabase = await createClient();
+  const { error, count } = id
+    ? await supabase.from("flights").update(parsed.values, { count: "exact" }).eq("id", id).eq("trip_id", tripId)
+    : await supabase.from("flights").insert({ trip_id: tripId, ...parsed.values }, { count: "exact" });
+  if (error) return { error: friendly(error) };
+  if (!count) return { error: "You can't edit flights on this trip." };
+  revalidate(tripId);
+  return {};
+}
+
+export async function deleteFlight(tripId: string, id: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error, count } = await supabase.from("flights").delete({ count: "exact" }).eq("id", id).eq("trip_id", tripId);
+  if (error) return { error: friendly(error) };
+  if (!count) return { error: "You can't delete this flight." };
+  revalidate(tripId);
+  return {};
+}
+
+// ---------------------------------------------------------------- stays
+
+function readStay(fd: FormData) {
+  const name = str(fd, "name");
+  const address = str(fd, "address");
+  const mapUrl = str(fd, "map_url");
+  const ref = str(fd, "booking_ref");
+  const notes = str(fd, "notes");
+  const tz = str(fd, "tz");
+
+  if (!name) return { error: "Give the stay a name." } as const;
+  if (name.length > 120) return { error: "Keep the name under 120 characters." } as const;
+  if (address.length > 300) return { error: "Keep the address under 300 characters." } as const;
+  if (ref.length > 40) return { error: "Keep the booking ref under 40 characters." } as const;
+  if (notes.length > 2000) return { error: "Keep notes under 2000 characters." } as const;
+  if (mapUrl && (!mapUrl.startsWith("https://") || mapUrl.length > 2000))
+    return { error: "The map link must start with https://" } as const;
+
+  const inAt = toInstant(str(fd, "check_in_local"), tz, "check-in");
+  if ("error" in inAt) return inAt;
+  const outAt = toInstant(str(fd, "check_out_local"), tz, "check-out");
+  if ("error" in outAt) return outAt;
+  if (Date.parse(outAt.iso) <= Date.parse(inAt.iso)) return { error: "Check-out must be after check-in." } as const;
+
+  return {
+    values: {
+      name,
+      address: address || null,
+      map_url: mapUrl || null,
+      check_in: inAt.iso,
+      check_out: outAt.iso,
+      tz,
+      booking_ref: ref || null,
+      notes: notes || null,
+    },
+  } as const;
+}
+
+export async function saveStay(tripId: string, id: string | null, fd: FormData): Promise<ActionResult> {
+  const parsed = readStay(fd);
+  if ("error" in parsed) return { error: parsed.error };
+  const supabase = await createClient();
+  const { error, count } = id
+    ? await supabase.from("stays").update(parsed.values, { count: "exact" }).eq("id", id).eq("trip_id", tripId)
+    : await supabase.from("stays").insert({ trip_id: tripId, ...parsed.values }, { count: "exact" });
+  if (error) return { error: friendly(error) };
+  if (!count) return { error: "You can't edit stays on this trip." };
+  revalidate(tripId);
+  return {};
+}
+
+export async function deleteStay(tripId: string, id: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error, count } = await supabase.from("stays").delete({ count: "exact" }).eq("id", id).eq("trip_id", tripId);
+  if (error) return { error: friendly(error) };
+  if (!count) return { error: "You can't delete this stay." };
+  revalidate(tripId);
+  return {};
+}

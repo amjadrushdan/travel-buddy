@@ -2,15 +2,18 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { AvatarStack } from "@/components/Avatar";
 import { JoinedToast } from "@/components/JoinedToast";
+import { NextFlightCard } from "@/components/NextFlightCard";
 import { TodayCard } from "@/components/TodayCard";
 import { listItinerary } from "@/lib/data/itinerary";
+import { listFlights } from "@/lib/data/travel";
+import { nextFlight } from "@/lib/travel";
 import { getTrip } from "@/lib/data/trips";
 import { tripDays } from "@/lib/itinerary";
 import { daysUntil, formatDateRange } from "@/lib/format";
 
 export default async function TripHomePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [{ trip, members }, items] = await Promise.all([getTrip(id), listItinerary(id)]);
+  const [{ trip, members }, items, flights] = await Promise.all([getTrip(id), listItinerary(id), listFlights(id)]);
   const days = daysUntil(trip.start_date);
   const subtitle = [trip.destination, formatDateRange(trip.start_date, trip.end_date)].filter(Boolean).join(" · ");
   const kicker = days === 0 ? "Departure day" : days !== null && days < 0 ? "On the trip" : "Next trip";
@@ -42,13 +45,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      <Link
-        href={`/trips/${trip.id}/flights`}
-        className="flex flex-col gap-1.5 rounded-card border-[1.5px] border-dashed border-line p-5 text-center"
-      >
-        <span className="text-base font-semibold">No flights yet</span>
-        <span className="text-sm text-muted">Flights will show here as a boarding pass.</span>
-      </Link>
+      <NextFlightCard tripId={trip.id} flight={nextFlight(flights, Date.now())} />
 
       <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} />
 
