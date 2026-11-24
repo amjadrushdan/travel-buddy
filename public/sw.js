@@ -8,7 +8,7 @@
 // - The page can ask the worker to "warm" a list of same-origin paths (the trip's other tabs)
 //   so they are saved too, and to "clear" saved pages (e.g. after leaving a trip).
 
-const VERSION = "v3";
+const VERSION = "v4";
 const PAGES = `tb-pages-${VERSION}`;
 const ASSETS = `tb-assets-${VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -64,7 +64,10 @@ const cacheable = (res) => res && res.ok && res.type === "basic" && !res.redirec
 async function saveAssetsOf(htmlResponse) {
   try {
     const html = await htmlResponse.text();
-    const urls = new Set(html.match(/\/_next\/static\/[^"'\s)\\]+/g) || []);
+    const urls = new Set([
+      ...(html.match(/\/_next\/static\/[^"'\s)\\]+/g) || []),
+      ...(html.match(/\/airline-logo\/[A-Z0-9]{2}/g) || []), // airline logos on flight cards
+    ]);
     const cache = await caches.open(ASSETS);
     await Promise.all(
       [...urls].map(async (path) => {
@@ -139,7 +142,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(page(request));
     return;
   }
-  if (url.pathname.startsWith("/_next/static/")) {
+  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/airline-logo/")) {
     event.respondWith(asset(request));
     return;
   }

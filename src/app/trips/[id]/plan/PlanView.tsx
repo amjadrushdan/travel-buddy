@@ -229,10 +229,22 @@ export function PlanView({ tripId, tripName, days, items, canEdit, requestedDay 
                         </span>
                       )}
                     </span>
-                    {link && (
-                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-[13px] text-muted [overflow-wrap:anywhere]">
-                        {it.place || "Open in Maps"} ↗
-                      </a>
+                    {(it.place || link) && (
+                      <div className="mt-0.5 flex items-center gap-2">
+                        {it.place && <span className="min-w-0 flex-1 text-[13px] text-muted [overflow-wrap:anywhere]">{it.place}</span>}
+                        {link && (
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Open ${it.place || it.title} in Google Maps`}
+                            className="flex flex-none items-center gap-1 rounded-full border border-line bg-surface py-1 pr-2.5 pl-1.5 text-[12px] font-semibold text-ink active:bg-bg"
+                          >
+                            <MapPinIcon />
+                            Maps
+                          </a>
+                        )}
+                      </div>
                     )}
                     {it.notes && <LinkedText text={it.notes} className="text-[13px] text-muted" />}
                   </div>
@@ -402,5 +414,15 @@ function ItemSheet({
         )}
       </form>
     </div>
+  );
+}
+
+/** Red map pin for the "Maps" button. */
+function MapPinIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
+      <path d="M12 2.5a7 7 0 0 0-7 7c0 5.2 7 12 7 12s7-6.8 7-12a7 7 0 0 0-7-7Z" fill="#E5322D" />
+      <circle cx="12" cy="9.5" r="2.6" fill="#fff" />
+    </svg>
   );
 }

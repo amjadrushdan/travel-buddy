@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { Field, inputCls, Masked, SheetActions, SheetForm, TzSelect, useToast } from "@/components/ui";
 import { airport } from "@/lib/airports";
+import { AirlineLogo } from "@/components/AirlineLogo";
+import { airlineName } from "@/lib/airlines";
 import { dayAt, duration, timeAt, tzLabel, utcToZonedInput } from "@/lib/time";
 import { flightAwareUrl, type Flight } from "@/lib/travel";
 import type { LiveStatus } from "@/lib/data/flight-status";
@@ -118,9 +120,12 @@ function FlightCard({
     <article className="relative rounded-card border border-line bg-surface">
       <div className="flex flex-col gap-3.5 px-4 pt-4 pb-[18px]">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[13px] text-muted">
-            {f.airline ? `${f.airline} · ` : ""}
-            <span className="font-mono font-semibold text-ink">{f.flight_no}</span>
+          <span className="flex min-w-0 items-center gap-2.5">
+            <AirlineLogo flightNo={f.flight_no} size={32} />
+            <span className="flex min-w-0 flex-col leading-tight">
+              <span className="truncate text-[14px] font-semibold text-ink">{airlineName(f.flight_no, f.airline) ?? "Flight"}</span>
+              <span className="font-mono text-[12px] font-semibold text-muted">{f.flight_no}</span>
+            </span>
           </span>
           <span className={`rounded-sm px-2 py-1 font-mono text-xs font-semibold ${BADGE_CLS[badge.tone]}`}>{badge.label}</span>
         </div>

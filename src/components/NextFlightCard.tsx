@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { airport } from "@/lib/airports";
+import { AirlineLogo } from "@/components/AirlineLogo";
+import { airlineName } from "@/lib/airlines";
 import type { LiveStatus } from "@/lib/data/flight-status";
 import { BADGE_CLS, changedTime, statusBadge, statusNote } from "@/lib/flight-status-map";
 import { dayAt, duration, shortDayAt, timeAt } from "@/lib/time";
@@ -52,8 +54,16 @@ export function NextFlightCard({
     <div className="flex flex-col text-hero-ink">
       <Link href={href} className="flex flex-col gap-3.5 rounded-t-card bg-hero px-[18px] pt-[18px] pb-4" style={{ WebkitMask: MASK_TOP, mask: MASK_TOP }}>
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-[11px] tracking-[.1em] text-hero-muted uppercase">
-            Next flight · {dayAt(f.depart_at, f.depart_tz)}
+          <span className="flex min-w-0 items-center gap-2.5">
+            <AirlineLogo flightNo={f.flight_no} size={30} />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="font-mono text-[11px] tracking-[.1em] text-hero-muted uppercase">
+                Next flight · {dayAt(f.depart_at, f.depart_tz)}
+              </span>
+              {airlineName(f.flight_no, f.airline) && (
+                <span className="truncate text-[13px] font-semibold">{airlineName(f.flight_no, f.airline)}</span>
+              )}
+            </span>
           </span>
           <span className={`rounded-sm px-2 py-1 font-mono text-xs font-semibold ${BADGE_CLS[badge.tone]}`}>{badge.label}</span>
         </div>
