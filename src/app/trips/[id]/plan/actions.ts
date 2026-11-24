@@ -148,9 +148,16 @@ export async function setDayTitle(tripId: string, day: string, title: string): P
   const t = title.trim();
   if (t.length > 80) return { error: "Keep the title under 80 characters." };
   const supabase = await createClient();
-  const { error } = t
-    ? await supabase.from("plan_days").upsert({ trip_id: tripId, day, title: t }, { onConflict: "trip_id,day" })
-    : await supabase.from("plan_days").delete().eq("trip_id", tripId).eq("day", day);
+  let error: { code?: string; message: string } | null = null;
+  if (!t) {
+    ({ error } = await supabase.from("plan_days").delete().eq("trip_id", tripId).eq("day", day));
+  } else {
+    // Update first, insert if the day has no title yet. (An upsert would also try to rewrite
+    // trip_id/day, which clients aren't allowed to update, so the database refuses it.)
+    const res = await supabase.from("plan_days").update({ title: t }, { count: "exact" }).eq("trip_id", tripId).eq("day", day);
+    error = res.error;
+    if (!error && !res.count) ({ error } = await supabase.from("plan_days").insert({ trip_id: tripId, day, title: t }));
+  }
   if (error) return { error: error.code === "42501" ? "Only owners and editors can name days." : error.message };
   revalidate(tripId);
   return {};
