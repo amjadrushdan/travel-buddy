@@ -22,13 +22,17 @@ export type Member = {
 
 const ROLE_ORDER: Record<Role, number> = { owner: 0, editor: 1, viewer: 2 };
 
+/**
+ * The signed-in user, or a redirect to /welcome. Uses getClaims(), which checks the token's
+ * signature locally (ES256 keys) instead of calling the auth server on every page.
+ * Data access is still enforced by RLS in the database on every query.
+ */
 export async function requireUser() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/welcome");
-  return { supabase, user };
+  const { data } = await supabase.auth.getClaims();
+  const id = data?.claims?.sub;
+  if (!id) redirect("/welcome");
+  return { supabase, user: { id } };
 }
 
 export async function listMyTrips() {

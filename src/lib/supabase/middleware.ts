@@ -25,10 +25,11 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Do not put code between createServerClient and getUser(): it refreshes the session.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Do not put code between createServerClient and getClaims(): it refreshes the session.
+  // getClaims() verifies the token's signature locally (the project uses ES256 signing keys),
+  // so most requests skip a round trip to the auth server; it refreshes expired tokens itself.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? { id: data.claims.sub } : null;
 
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
