@@ -80,6 +80,9 @@ async function shrink(file: File): Promise<Shrunk> {
 }
 
 function friendly(message: string): string {
+  if (/uploads per trip per day/i.test(message))
+    return `The cover has been changed ${COVER_DAILY_LIMIT} times today. Try again tomorrow.`;
+  if (/already has 2 files/i.test(message)) return "Another cover upload is still finishing. Try again in a minute.";
   if (/row-level security|policy|unauthori[sz]ed|403/i.test(message))
     return `Couldn't save. Only owners and editors can change the cover, up to ${COVER_DAILY_LIMIT} times a day.`;
   if (/payload too large|exceeded the maximum|413|size/i.test(message)) return "That photo is still too large.";

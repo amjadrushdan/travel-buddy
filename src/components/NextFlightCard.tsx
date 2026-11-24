@@ -5,6 +5,15 @@ import { BADGE_CLS, changedTime, statusBadge, statusNote } from "@/lib/flight-st
 import { dayAt, duration, shortDayAt, timeAt } from "@/lib/time";
 import { flightAwareUrl, type Flight } from "@/lib/travel";
 
+// Notches are real see-through cut-outs (CSS masks), so they look right over a cover photo
+// as well as over the plain page. Each half is masked at the perforation's two ends.
+const MASK_TOP =
+  "radial-gradient(circle at 0 100%, transparent 10px, #000 10.5px) left/51% 100% no-repeat, " +
+  "radial-gradient(circle at 100% 100%, transparent 10px, #000 10.5px) right/51% 100% no-repeat";
+const MASK_BOTTOM =
+  "radial-gradient(circle at 0 0, transparent 10px, #000 10.5px) left/51% 100% no-repeat, " +
+  "radial-gradient(circle at 100% 0, transparent 10px, #000 10.5px) right/51% 100% no-repeat";
+
 /** Home's dark boarding pass for the next flight. Times are local at each airport. */
 export function NextFlightCard({
   tripId,
@@ -41,7 +50,7 @@ export function NextFlightCard({
 
   return (
     <div className="flex flex-col text-hero-ink">
-      <Link href={href} className="flex flex-col gap-3.5 rounded-t-card bg-hero px-[18px] pt-[18px] pb-4">
+      <Link href={href} className="flex flex-col gap-3.5 rounded-t-card bg-hero px-[18px] pt-[18px] pb-4" style={{ WebkitMask: MASK_TOP, mask: MASK_TOP }}>
         <div className="flex items-center justify-between gap-2">
           <span className="font-mono text-[11px] tracking-[.1em] text-hero-muted uppercase">
             Next flight · {dayAt(f.depart_at, f.depart_tz)}
@@ -68,9 +77,10 @@ export function NextFlightCard({
           </div>
         </div>
       </Link>
-      <div className="relative flex flex-col gap-3.5 rounded-b-card border-t-[1.5px] border-dashed border-hero-line bg-hero px-[18px] pt-3 pb-3.5">
-        <span className="absolute -top-[11px] -left-[11px] size-5 rounded-full bg-bg" />
-        <span className="absolute -top-[11px] -right-[11px] size-5 rounded-full bg-bg" />
+      <div
+        className="relative flex flex-col gap-3.5 rounded-b-card border-t-[1.5px] border-dashed border-hero-line bg-hero px-[18px] pt-3 pb-3.5"
+        style={{ WebkitMask: MASK_BOTTOM, mask: MASK_BOTTOM }}
+      >
         <div className="grid grid-cols-3 gap-2">
           <HeroStat label="Gate" value={live?.gate_dep ?? "—"} />
           <HeroStat label="Terminal" value={live?.terminal_dep ?? "—"} />

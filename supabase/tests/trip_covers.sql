@@ -64,7 +64,7 @@ begin
 
   -- viewer can see the file but not add or remove
   perform set_config('request.jwt.claims', json_build_object('sub', v, 'role', 'authenticated')::text, true);
-  select count(*) into n from storage.objects where bucket_id = 'trip-covers';
+  select count(*) into n from storage.objects where bucket_id = 'trip-covers' and name like trip || '/%';
   if n <> 1 then raise exception 'FAIL viewer sees % files', n; end if;
   begin
     insert into storage.objects (bucket_id, name, owner) values ('trip-covers', p3, v);
