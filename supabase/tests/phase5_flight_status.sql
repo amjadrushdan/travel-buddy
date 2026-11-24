@@ -14,6 +14,7 @@ begin
   insert into private.app_secrets (name, hash) values ('flight_status', extensions.digest(sec, 'sha256'))
   on conflict (name) do nothing;
   delete from private.api_usage;
+  delete from private.api_usage_daily;
 
   insert into auth.users (id, raw_user_meta_data, aud, role, is_anonymous) values
     (o, '{"name":"Owner"}',    'authenticated', 'authenticated', true),
@@ -61,7 +62,7 @@ begin
     raise exception 'FAIL members can read the usage counter';
   exception when insufficient_privilege then null; end;
   perform set_config('role', 'postgres', true);
-  select calls into n from private.api_usage where api = 'flightaware';
+  select calls into n from private.api_usage where api = 'flight_status';
   if n <> 1 then raise exception 'FAIL expected 1 API call, counted %', n; end if;
   perform set_config('role', 'authenticated', true);
 
@@ -101,6 +102,12 @@ begin
   perform public.flight_status_release(sec, 'JL724', '2026-12-12');
   r := public.flight_status_claim(sec, 'JL724', '2026-12-12', 12, 10);
   if r <> 'go' then raise exception 'FAIL release did not free the claim %', r; end if;
+
+  -- daily cap stops calls even when the monthly cap has room (4 calls made today so far)
+  r := public.flight_status_claim(sec, 'NH886', '2026-12-12', 12, 100, 4);
+  if r <> 'cap' then raise exception 'FAIL daily cap not enforced %', r; end if;
+  r := public.flight_status_claim(sec, 'NH886', '2026-12-12', 12, 100, 5);
+  if r <> 'go' then raise exception 'FAIL daily cap blocked too early %', r; end if;
 
   -- anon can't call the RPCs or read
   perform set_config('role', 'anon', true);

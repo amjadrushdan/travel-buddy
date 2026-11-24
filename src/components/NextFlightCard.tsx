@@ -10,13 +10,13 @@ export function NextFlightCard({
   tripId,
   flight,
   live,
-  liveEnabled,
+  liveBeforeMs,
   nowMs,
 }: {
   tripId: string;
   flight: Flight | null;
   live: LiveStatus | null;
-  liveEnabled: boolean;
+  liveBeforeMs: number | null;
   nowMs: number;
 }) {
   const href = `/trips/${tripId}/flights`;
@@ -77,7 +77,7 @@ export function NextFlightCard({
           <HeroStat label="Departs" value={shortDayAt(f.depart_at, f.depart_tz)} />
         </div>
         <div className="flex justify-between gap-2 text-xs text-hero-muted">
-          <span>{statusNote(f, live, liveEnabled, nowMs)}</span>
+          <span>{statusNote(f, live, liveBeforeMs, nowMs)}</span>
           <a
             href={flightAwareUrl(f.flight_no)}
             target="_blank"

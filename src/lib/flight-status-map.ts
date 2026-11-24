@@ -1,6 +1,6 @@
 // Pure mapping from a FlightAware AeroAPI flight to our status row, plus display helpers.
 // No I/O, so it works on server and browser and can be tested alone.
-import { dayAt, timeAt } from "@/lib/time";
+import { dayAt, timeAt, utcToZonedInput, zonedToUtc } from "@/lib/time";
 
 export type StatusKey = "scheduled" | "on_time" | "delayed" | "departed" | "landed" | "cancelled";
 
@@ -95,6 +95,97 @@ export function mapAeroFlight(f: AeroFlight): MappedStatus {
   };
 }
 
+// ---------------------------------------------------------------- aviationstack
+
+type AvsEnd = {
+  iata?: string | null;
+  terminal?: string | null;
+  gate?: string | null;
+  delay?: number | null; // minutes
+  scheduled?: string | null;
+  estimated?: string | null;
+  actual?: string | null;
+};
+
+/** The fields of an aviationstack /v1/flights result that we use. */
+export type AvsFlight = {
+  flight_date?: string | null;
+  flight_status?: string | null; // scheduled | active | landed | cancelled | incident | diverted
+  departure?: AvsEnd | null;
+  arrival?: AvsEnd | null;
+  flight?: { iata?: string | null } | null;
+};
+
+type OurFlight = { from_airport: string; depart_at: string; depart_tz: string; arrive_tz: string };
+
+/**
+ * aviationstack often writes airport-local times with a "+00:00" label. Decide per response:
+ * if the scheduled departure's wall clock equals our scheduled local time, read every time as
+ * local at its airport; otherwise trust the offset as written.
+ */
+function avsTimeReader(r: AvsFlight, f: OurFlight) {
+  const sched = r.departure?.scheduled;
+  const ourLocal = utcToZonedInput(f.depart_at, f.depart_tz);
+  const localLabelled = !!sched && sched.slice(0, 16) === ourLocal && Date.parse(sched) !== Date.parse(f.depart_at);
+  return (s: string | null | undefined, tz: string): string | null => {
+    if (!s) return null;
+    if (localLabelled) return zonedToUtc(s.slice(0, 16), tz).toISOString();
+    const t = Date.parse(s);
+    return Number.isNaN(t) ? null : new Date(t).toISOString();
+  };
+}
+
+/** Our flight among the results: same origin, scheduled departure within 12h of ours. */
+export function pickAvsFlight(results: AvsFlight[], f: OurFlight): AvsFlight | null {
+  const target = Date.parse(f.depart_at);
+  let best: AvsFlight | null = null;
+  let bestGap = 12 * 3_600_000;
+  for (const r of results) {
+    const origin = r.departure?.iata;
+    if (origin && origin.toUpperCase() !== f.from_airport.toUpperCase()) continue;
+    const at = avsTimeReader(r, f)(r.departure?.scheduled, f.depart_tz);
+    if (!at) continue;
+    const gap = Math.abs(Date.parse(at) - target);
+    if (gap <= bestGap) {
+      best = r;
+      bestGap = gap;
+    }
+  }
+  return best;
+}
+
+export function mapAvsFlight(r: AvsFlight, f: OurFlight): MappedStatus {
+  const read = avsTimeReader(r, f);
+  const dep = r.departure ?? {};
+  const arr = r.arrival ?? {};
+  const s = (r.flight_status ?? "").toLowerCase();
+  const delay = dep.delay ?? null;
+  const departed = !!dep.actual || s === "active" || s === "diverted" || s === "incident";
+
+  const status: StatusKey =
+    s === "cancelled"
+      ? "cancelled"
+      : s === "landed" || !!arr.actual
+        ? "landed"
+        : departed
+          ? "departed"
+          : delay != null && delay >= DELAY_THRESHOLD_MIN
+            ? "delayed"
+            : "on_time";
+
+  const clean = (v: string | null | undefined) => (v ? v.slice(0, 10) : null);
+  return {
+    status,
+    delay_min: delay,
+    est_departure: read(dep.actual ?? dep.estimated ?? dep.scheduled, f.depart_tz),
+    est_arrival: read(arr.actual ?? arr.estimated ?? arr.scheduled, f.arrive_tz),
+    gate_dep: clean(dep.gate),
+    gate_arr: clean(arr.gate),
+    terminal_dep: clean(dep.terminal),
+    terminal_arr: clean(arr.terminal),
+  };
+}
+
 /** Badge text and colour for a status. */
 export function statusBadge(s: { status: StatusKey; delay_min: number | null } | null): {
   label: string;
@@ -135,12 +226,12 @@ export function changedTime(scheduled: string, estimate: string | null | undefin
 export function statusNote(
   f: { depart_at: string; depart_tz: string },
   live: { fetched_at: string | null } | null,
-  liveEnabled: boolean,
+  liveBeforeMs: number | null, // null = live status off
   nowMs: number,
 ): string {
   if (live?.fetched_at) return `Updated ${agoLabel(live.fetched_at, nowMs)}`;
-  if (!liveEnabled) return "Scheduled times";
-  const from = new Date(Date.parse(f.depart_at) - 24 * 3_600_000).toISOString();
+  if (liveBeforeMs == null) return "Scheduled times";
+  const from = new Date(Date.parse(f.depart_at) - liveBeforeMs).toISOString();
   return `Live status from ${dayAt(from, f.depart_tz)}, ${timeAt(from, f.depart_tz)}`;
 }
 

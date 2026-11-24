@@ -20,7 +20,7 @@ export function FlightsView({
   members,
   canEdit,
   live,
-  liveEnabled,
+  liveBeforeMs,
   renderedAt,
 }: {
   tripId: string;
@@ -30,7 +30,7 @@ export function FlightsView({
   members: Member[];
   canEdit: boolean;
   live: Record<string, LiveStatus | null>;
-  liveEnabled: boolean;
+  liveBeforeMs: number | null;
   renderedAt: number;
 }) {
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -71,7 +71,7 @@ export function FlightsView({
           f={f}
           pax={f.passengers.length}
           live={live[f.id] ?? null}
-          liveEnabled={liveEnabled}
+          liveBeforeMs={liveBeforeMs}
           renderedAt={renderedAt}
           onEdit={canEdit ? () => setSheet({ mode: "edit", flight: f }) : undefined}
         />
@@ -96,14 +96,14 @@ function FlightCard({
   f,
   pax,
   live,
-  liveEnabled,
+  liveBeforeMs,
   renderedAt,
   onEdit,
 }: {
   f: Flight;
   pax: number;
   live: LiveStatus | null;
-  liveEnabled: boolean;
+  liveBeforeMs: number | null;
   renderedAt: number;
   onEdit?: () => void;
 }) {
@@ -159,7 +159,7 @@ function FlightCard({
       </div>
 
       <div className="flex items-center justify-between gap-2.5 border-t border-line px-4 pt-2.5 pb-3.5 text-xs text-muted">
-        <span className="text-pretty">{statusNote(f, live, liveEnabled, renderedAt)}</span>
+        <span className="text-pretty">{statusNote(f, live, liveBeforeMs, renderedAt)}</span>
         <a href={flightAwareUrl(f.flight_no)} target="_blank" rel="noopener noreferrer" className="font-semibold whitespace-nowrap text-ink">
           Track on FlightAware ↗
         </a>

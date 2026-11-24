@@ -6,7 +6,7 @@ import { NextFlightCard } from "@/components/NextFlightCard";
 import { TodayCard } from "@/components/TodayCard";
 import { listItinerary } from "@/lib/data/itinerary";
 import { listFlights } from "@/lib/data/travel";
-import { getFlightStatuses, liveStatusEnabled } from "@/lib/data/flight-status";
+import { getFlightStatuses, liveWindowBeforeMs } from "@/lib/data/flight-status";
 import { nextFlight } from "@/lib/travel";
 import { getTrip } from "@/lib/data/trips";
 import { tripDays } from "@/lib/itinerary";
@@ -53,7 +53,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
         tripId={trip.id}
         flight={next}
         live={next ? (live[next.id] ?? null) : null}
-        liveEnabled={liveStatusEnabled()}
+        liveBeforeMs={liveWindowBeforeMs()}
         nowMs={now}
       />
 

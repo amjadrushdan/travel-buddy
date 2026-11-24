@@ -1,6 +1,6 @@
 import { getTrip } from "@/lib/data/trips";
 import { listFlights } from "@/lib/data/travel";
-import { getFlightStatuses, liveStatusEnabled } from "@/lib/data/flight-status";
+import { getFlightStatuses, liveWindowBeforeMs } from "@/lib/data/flight-status";
 import { FlightsView } from "./FlightsView";
 
 export default async function FlightsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +11,7 @@ export default async function FlightsPage({ params }: { params: Promise<{ id: st
   return (
     <FlightsView
       live={live}
-      liveEnabled={liveStatusEnabled()}
+      liveBeforeMs={liveWindowBeforeMs()}
       renderedAt={Date.now()}
       tripId={trip.id}
       tripName={trip.name}

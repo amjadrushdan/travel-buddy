@@ -1,17 +1,32 @@
 // Live flight status, server side only. Follows MVP_PLAN "Fetch Rules":
-//  1. Server-side only; FLIGHTAWARE_API_KEY never reaches the browser.
+//  1. Server-side only; API keys never reach the browser.
 //  2. Lazy: runs when a member opens the trip, never on a schedule.
-//  3. Active window: from 24h before departure until 6h after scheduled arrival.
+//  3. Active window around the flight (see PROVIDERS).
 //  4. Cache: rows newer than the TTL are served as-is.
 //  5. Frozen once landed or cancelled.
 //  6. Dedupe: the DB claim lets only one concurrent request call the API.
-// With no API key (or the monthly cap reached) the app shows scheduled times plus the
-// "Track on FlightAware" link only.
+//
+// Limiter / cache layers, cheapest first:
+//  a. In-memory (per server instance): a flight checked within its TTL skips even the DB claim.
+//  b. DB claim (shared by every instance and user): TTL cache, row-lock dedupe, freeze after
+//     landing, a DAILY cap and a MONTHLY cap. Only a 'go' from the claim calls the provider.
+//
+// Provider: aviationstack if AVIATIONSTACK_API_KEY is set, else FlightAware if FLIGHTAWARE_API_KEY
+// is set. With neither (or a cap reached) the app shows scheduled times plus tracking links.
 
 import { createClient } from "@/lib/supabase/server";
 import { dateAt } from "@/lib/time";
 import type { Flight } from "@/lib/travel";
-import { mapAeroFlight, pickFlight, type AeroFlight, type StatusKey } from "@/lib/flight-status-map";
+import {
+  mapAeroFlight,
+  mapAvsFlight,
+  pickAvsFlight,
+  pickFlight,
+  type AeroFlight,
+  type AvsFlight,
+  type MappedStatus,
+  type StatusKey,
+} from "@/lib/flight-status-map";
 
 export type LiveStatus = {
   status: StatusKey;
@@ -25,10 +40,76 @@ export type LiveStatus = {
   fetched_at: string | null;
 };
 
-const TTL_MIN = 12;
-const WINDOW_BEFORE_MS = 24 * 3_600_000;
-const WINDOW_AFTER_MS = 6 * 3_600_000;
-const FETCH_TIMEOUT_MS = 5000;
+const H = 3_600_000;
+const FETCH_TIMEOUT_MS = 6000;
+
+type Provider = {
+  name: "aviationstack" | "flightaware";
+  ttlMin: number;
+  windowBeforeMs: number;
+  windowAfterMs: number;
+  defaultMonthlyCap: number;
+  defaultDailyCap: number;
+  /** The mapped status plus the raw record to store, or null if the flight wasn't found. */
+  fetch: (ident: string, f: Flight) => Promise<{ mapped: MappedStatus; raw: unknown } | null>;
+};
+
+// aviationstack free plan: ~100 calls/month. Check every 30 min from 3h before departure to
+// 2h after arrival (about 24 calls per flight at most); stop at 15 a day and 90 a month.
+const AVIATIONSTACK: Provider = {
+  name: "aviationstack",
+  ttlMin: 30,
+  windowBeforeMs: 3 * H,
+  windowAfterMs: 2 * H,
+  defaultMonthlyCap: 90,
+  defaultDailyCap: 15,
+  async fetch(ident, f) {
+    // The free plan only supports plain http. The key is only ever sent from the server.
+    const base = process.env.AVIATIONSTACK_BASE_URL || "http://api.aviationstack.com/v1";
+    const params = new URLSearchParams({ access_key: process.env.AVIATIONSTACK_API_KEY!, flight_iata: ident });
+    const res = await fetch(`${base}/flights?${params}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), cache: "no-store" });
+    const body = (await res.json().catch(() => ({}))) as { data?: AvsFlight[]; error?: { code?: string; message?: string } };
+    if (!res.ok || body.error) {
+      throw new Error(`aviationstack ${res.status} ${body.error?.code ?? ""} ${body.error?.message ?? ""}`.trim());
+    }
+    const hit = pickAvsFlight(body.data ?? [], f);
+    return hit ? { mapped: mapAvsFlight(hit, f), raw: hit } : null;
+  },
+};
+
+// FlightAware AeroAPI personal tier (needs a card on file): every 12 min from 24h before.
+const FLIGHTAWARE: Provider = {
+  name: "flightaware",
+  ttlMin: 12,
+  windowBeforeMs: 24 * H,
+  windowAfterMs: 6 * H,
+  defaultMonthlyCap: 500,
+  defaultDailyCap: 100,
+  async fetch(ident, f) {
+    const dep = Date.parse(f.depart_at);
+    const params = new URLSearchParams({
+      ident_type: "designator",
+      start: new Date(dep - 12 * H).toISOString().slice(0, 19) + "Z",
+      end: new Date(dep + 12 * H).toISOString().slice(0, 19) + "Z",
+    });
+    const res = await fetch(`https://aeroapi.flightaware.com/aeroapi/flights/${encodeURIComponent(ident)}?${params}`, {
+      headers: { "x-apikey": process.env.FLIGHTAWARE_API_KEY!, accept: "application/json" },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`AeroAPI ${res.status}`);
+    const body = (await res.json()) as { flights?: AeroFlight[] };
+    const hit = pickFlight(body.flights ?? [], f.from_airport, f.depart_at);
+    return hit ? { mapped: mapAeroFlight(hit), raw: hit } : null;
+  },
+};
+
+function provider(): Provider | null {
+  if (!process.env.FLIGHT_STATUS_SECRET) return null;
+  if (process.env.AVIATIONSTACK_API_KEY) return AVIATIONSTACK;
+  if (process.env.FLIGHTAWARE_API_KEY) return FLIGHTAWARE;
+  return null;
+}
 
 const COLUMNS =
   "flight_no, flight_date, status, delay_min, est_departure, est_arrival, gate_dep, gate_arr, terminal_dep, terminal_arr, fetched_at";
@@ -38,12 +119,35 @@ export const statusKey = (f: Pick<Flight, "flight_no" | "depart_at" | "depart_tz
   flight_date: dateAt(f.depart_at, f.depart_tz),
 });
 
-export function inActiveWindow(f: Pick<Flight, "depart_at" | "arrive_at">, now: number): boolean {
-  return now >= Date.parse(f.depart_at) - WINDOW_BEFORE_MS && now <= Date.parse(f.arrive_at) + WINDOW_AFTER_MS;
+export function inActiveWindow(f: Pick<Flight, "depart_at" | "arrive_at">, now: number, p: Provider): boolean {
+  return now >= Date.parse(f.depart_at) - p.windowBeforeMs && now <= Date.parse(f.arrive_at) + p.windowAfterMs;
 }
 
 export function liveStatusEnabled(): boolean {
-  return !!process.env.FLIGHTAWARE_API_KEY && !!process.env.FLIGHT_STATUS_SECRET;
+  return provider() !== null;
+}
+
+/** How long before departure live status starts, or null when live status is off. */
+export function liveWindowBeforeMs(): number | null {
+  return provider()?.windowBeforeMs ?? null;
+}
+
+// ---------------------------------------------------------------- layer a: in-memory gate
+// key "MH88|2026-12-12" → don't ask the DB again before this time (ms).
+// Per server instance only; the DB claim is still the source of truth across instances.
+const memo = new Map<string, number>();
+const MEMO_MAX = 500;
+
+function memoSkip(k: string, now: number): boolean {
+  const until = memo.get(k);
+  if (until && until > now) return true;
+  if (until) memo.delete(k);
+  return false;
+}
+
+function memoHold(k: string, ms: number) {
+  if (memo.size >= MEMO_MAX) memo.delete(memo.keys().next().value!);
+  memo.set(k, Date.now() + ms);
 }
 
 /** Status for each flight id (null = nothing known). Refreshes stale, active flights first. */
@@ -52,10 +156,21 @@ export async function getFlightStatuses(flights: Flight[]): Promise<Record<strin
   if (flights.length === 0) return out;
   const supabase = await createClient();
   const now = Date.now();
+  const p = provider();
 
-  if (liveStatusEnabled()) {
+  if (p) {
+    const due = flights.filter((f) => inActiveWindow(f, now, p));
+    // The same flight may appear twice (two trips); refresh each key once.
+    const seen = new Set<string>();
     await Promise.all(
-      flights.filter((f) => inActiveWindow(f, now)).map((f) => refresh(supabase, f).catch((e) => console.error("flight status", f.flight_no, e))),
+      due
+        .filter((f) => {
+          const k = memoKey(f);
+          if (seen.has(k) || memoSkip(k, now)) return false;
+          seen.add(k);
+          return true;
+        })
+        .map((f) => refresh(supabase, f, p).catch((e) => console.error("flight status", f.flight_no, e))),
     );
   }
 
@@ -73,30 +188,47 @@ export async function getFlightStatuses(flights: Flight[]): Promise<Record<strin
   return out;
 }
 
+const memoKey = (f: Flight) => {
+  const k = statusKey(f);
+  return `${k.flight_no}|${k.flight_date}`;
+};
+
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
-async function refresh(supabase: Supabase, f: Flight) {
+// ---------------------------------------------------------------- layer b: DB claim + provider
+async function refresh(supabase: Supabase, f: Flight, p: Provider) {
   const secret = process.env.FLIGHT_STATUS_SECRET!;
   const key = statusKey(f);
-  const cap = Number(process.env.FLIGHTAWARE_MONTHLY_CAP) || 500;
+  const mk = memoKey(f);
+  const monthly = Number(process.env.FLIGHT_STATUS_MONTHLY_CAP) || p.defaultMonthlyCap;
+  const daily = Number(process.env.FLIGHT_STATUS_DAILY_CAP) || p.defaultDailyCap;
+  const release = () =>
+    supabase.rpc("flight_status_release", { p_secret: secret, p_flight_no: key.flight_no, p_flight_date: key.flight_date });
 
   const { data: claim, error } = await supabase.rpc("flight_status_claim", {
     p_secret: secret,
     p_flight_no: key.flight_no,
     p_flight_date: key.flight_date,
-    p_ttl_minutes: TTL_MIN,
-    p_monthly_cap: cap,
+    p_ttl_minutes: p.ttlMin,
+    p_monthly_cap: monthly,
+    p_daily_cap: daily,
   });
   if (error) throw error;
-  if (claim !== "go") return; // fresh, frozen, busy or cap
+
+  // Remember the answer in memory so the next opens skip the DB round trip.
+  if (claim === "fresh" || claim === "busy") memoHold(mk, Math.min(p.ttlMin, 5) * 60_000);
+  if (claim === "frozen") memoHold(mk, 24 * H);
+  if (claim === "cap") memoHold(mk, 30 * 60_000);
+  if (claim !== "go") return;
 
   try {
-    const result = await fetchAero(key.flight_no, f);
+    const result = await p.fetch(key.flight_no, f);
     if (!result) {
-      await supabase.rpc("flight_status_release", { p_secret: secret, p_flight_no: key.flight_no, p_flight_date: key.flight_date });
+      await release();
+      memoHold(mk, p.ttlMin * 60_000); // not found yet: don't retry on every open
       return;
     }
-    const m = mapAeroFlight(result);
+    const m = result.mapped;
     const { error: saveError } = await supabase.rpc("flight_status_save", {
       p_secret: secret,
       p_flight_no: key.flight_no,
@@ -109,28 +241,13 @@ async function refresh(supabase: Supabase, f: Flight) {
       p_gate_arr: m.gate_arr,
       p_terminal_dep: m.terminal_dep,
       p_terminal_arr: m.terminal_arr,
-      p_raw: result,
+      p_raw: { provider: p.name, data: result.raw },
     });
     if (saveError) throw saveError;
+    memoHold(mk, p.ttlMin * 60_000);
   } catch (e) {
-    await supabase.rpc("flight_status_release", { p_secret: secret, p_flight_no: key.flight_no, p_flight_date: key.flight_date });
+    await release();
+    memoHold(mk, 5 * 60_000); // provider error: back off 5 min before trying again
     throw e;
   }
-}
-
-async function fetchAero(ident: string, f: Flight): Promise<AeroFlight | null> {
-  const dep = Date.parse(f.depart_at);
-  const params = new URLSearchParams({
-    ident_type: "designator",
-    start: new Date(dep - 12 * 3_600_000).toISOString().slice(0, 19) + "Z",
-    end: new Date(dep + 12 * 3_600_000).toISOString().slice(0, 19) + "Z",
-  });
-  const res = await fetch(`https://aeroapi.flightaware.com/aeroapi/flights/${encodeURIComponent(ident)}?${params}`, {
-    headers: { "x-apikey": process.env.FLIGHTAWARE_API_KEY!, accept: "application/json" },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`AeroAPI ${res.status}`);
-  const body = (await res.json()) as { flights?: AeroFlight[] };
-  return pickFlight(body.flights ?? [], f.from_airport, f.depart_at);
 }
