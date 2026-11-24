@@ -8,10 +8,13 @@ import "@fontsource/roboto-mono/latin-400.css";
 import "@fontsource/roboto-mono/latin-500.css";
 import "@fontsource/roboto-mono/latin-600.css";
 import "./globals.css";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { ServiceWorker } from "@/components/ServiceWorker";
 
 export const metadata: Metadata = {
   title: "Travel Buddy",
   description: "One place for the whole trip.",
+  appleWebApp: { capable: true, title: "Travel Buddy", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -24,7 +27,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        <div className="mx-auto min-h-dvh w-full max-w-[480px]">{children}</div>
+        <div className="mx-auto min-h-dvh w-full max-w-[480px]">
+          <OfflineBanner />
+          {children}
+        </div>
+        <ServiceWorker />
       </body>
     </html>
   );

@@ -87,7 +87,7 @@ export function PlanView({ tripId, tripName, days, items, canEdit, requestedDay 
     setOrder(ids);
     const d = day;
     start(async () => {
-      const res = await reorderDay(tripId, d, ids);
+      const res = await reorderDay(tripId, d, ids).catch(() => ({ error: "Couldn't save. Are you offline?" }));
       if (res.error) {
         setOrder(null);
         setToast(res.error);
@@ -317,7 +317,7 @@ function ItemSheet({
   function submit(formData: FormData) {
     setError(null);
     start(async () => {
-      const res = await saveItem(tripId, item?.id ?? null, formData);
+      const res = await saveItem(tripId, item?.id ?? null, formData).catch(() => ({ error: "Couldn't save. Are you offline?" }));
       if (res.error) setError(res.error);
       else {
         onClose();
@@ -333,7 +333,7 @@ function ItemSheet({
       return;
     }
     start(async () => {
-      const res = await deleteItem(tripId, item.id);
+      const res = await deleteItem(tripId, item.id).catch(() => ({ error: "Couldn't delete. Are you offline?" }));
       if (res.error) setError(res.error);
       else {
         onClose();

@@ -247,7 +247,7 @@ function FlightSheet({
   function submit(fd: FormData) {
     setError(null);
     start(async () => {
-      const res = await saveFlight(tripId, f?.id ?? null, fd);
+      const res = await saveFlight(tripId, f?.id ?? null, fd).catch(() => ({ error: "Couldn't reach the server. Are you offline?" }));
       if (res.error) setError(res.error);
       else {
         onClose();
@@ -259,7 +259,7 @@ function FlightSheet({
   function remove() {
     if (!f) return;
     start(async () => {
-      const res = await deleteFlight(tripId, f.id);
+      const res = await deleteFlight(tripId, f.id).catch(() => ({ error: "Couldn't reach the server. Are you offline?" }));
       if (res.error) setError(res.error);
       else {
         onClose();

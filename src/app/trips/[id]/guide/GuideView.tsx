@@ -139,7 +139,7 @@ function GuideSheet({
     setError(null);
     fd.set("body_md", body);
     start(async () => {
-      const res = await saveGuide(tripId, g?.id ?? null, fd);
+      const res = await saveGuide(tripId, g?.id ?? null, fd).catch(() => ({ error: "Couldn't reach the server. Are you offline?" }));
       if (res.error) setError(res.error);
       else {
         onClose();
@@ -151,7 +151,7 @@ function GuideSheet({
   function remove() {
     if (!g) return;
     start(async () => {
-      const res = await deleteGuide(tripId, g.id);
+      const res = await deleteGuide(tripId, g.id).catch(() => ({ error: "Couldn't reach the server. Are you offline?" }));
       if (res.error) setError(res.error);
       else {
         onClose();

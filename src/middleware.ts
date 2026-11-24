@@ -7,6 +7,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
+    // Skip static files, the service worker, the manifest and generated icons: they must load
+    // without a session (the worker installs before anyone has typed their name).
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icon/|apple-icon|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
   ],
 };

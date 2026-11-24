@@ -59,6 +59,7 @@ export function SheetActions({
   onDelete?: () => void;
 }) {
   const [armed, setArmed] = useState(false);
+  const online = useOnline();
   return (
     <>
       {error && (
@@ -66,13 +67,13 @@ export function SheetActions({
           {error}
         </p>
       )}
-      <button type="submit" disabled={pending} className="rounded-sm bg-ink p-[15px] text-base font-semibold text-white">
-        {pending ? "Saving…" : saveLabel}
+      <button type="submit" disabled={pending || !online} className="rounded-sm bg-ink p-[15px] text-base font-semibold text-white">
+        {!online ? "You're offline" : pending ? "Saving…" : saveLabel}
       </button>
       {onDelete && (
         <button
           type="button"
-          disabled={pending}
+          disabled={pending || !online}
           onClick={() => (armed ? onDelete() : setArmed(true))}
           className="rounded-sm border border-line bg-surface p-3 text-sm font-semibold text-bad"
         >
@@ -166,6 +167,22 @@ export function Masked({ value, className = "" }: { value: string | null; classN
       <span className="text-[11px] text-muted underline">{shown ? "Hide" : "Show"}</span>
     </button>
   );
+}
+
+/** navigator.onLine, kept up to date. Starts true so server and browser render the same. */
+export function useOnline(): boolean {
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  return online;
 }
 
 /** The device's own timezone, read after mount. */

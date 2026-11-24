@@ -159,7 +159,7 @@ function StaySheet({
   function submit(fd: FormData) {
     setError(null);
     start(async () => {
-      const res = await saveStay(tripId, s?.id ?? null, fd);
+      const res = await saveStay(tripId, s?.id ?? null, fd).catch(() => ({ error: "Couldn't reach the server. Are you offline?" }));
       if (res.error) setError(res.error);
       else {
         onClose();
@@ -171,7 +171,7 @@ function StaySheet({
   function remove() {
     if (!s) return;
     start(async () => {
-      const res = await deleteStay(tripId, s.id);
+      const res = await deleteStay(tripId, s.id).catch(() => ({ error: "Couldn't reach the server. Are you offline?" }));
       if (res.error) setError(res.error);
       else {
         onClose();
