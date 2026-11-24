@@ -105,6 +105,8 @@ function readStay(fd: FormData) {
   const checkinInfo = str(fd, "checkin_info");
   const doorCode = str(fd, "door_code");
   const wifi = str(fd, "wifi");
+  const coords = readCoords(str(fd, "lat"), str(fd, "lng"), mapUrl);
+  if ("error" in coords) return coords;
 
   if (platform && !["airbnb", "booking", "agoda", "hotel", "other"].includes(platform))
     return { error: "Pick where it's booked." } as const;
@@ -147,6 +149,8 @@ function readStay(fd: FormData) {
       checkin_info: checkinInfo || null,
       door_code: doorCode || null,
       wifi: wifi || null,
+      lat: coords.lat,
+      lng: coords.lng,
     },
   } as const;
 }
@@ -202,4 +206,57 @@ export async function deleteStay(tripId: string, id: string): Promise<ActionResu
   if (!count) return { error: "You can't delete this stay." };
   revalidate(tripId);
   return {};
+}
+
+// ---------------------------------------------------------------- stay location
+
+/**
+ * Coordinates from the form, else from a pasted Google Maps link that contains them
+ * (".../@35.68,139.83,17z" or "?q=35.68,139.83"). Both or neither.
+ */
+function readCoords(latRaw: string, lngRaw: string, mapUrl: string): { lat: number | null; lng: number | null } | { error: string } {
+  let lat = latRaw ? Number(latRaw) : NaN;
+  let lng = lngRaw ? Number(lngRaw) : NaN;
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    const m = /@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/.exec(mapUrl) ?? /[?&](?:q|query|ll)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/.exec(mapUrl);
+    if (!m) return { lat: null, lng: null };
+    lat = Number(m[1]);
+    lng = Number(m[2]);
+  }
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return { error: "That location isn't valid." };
+  return { lat: Math.round(lat * 1e5) / 1e5, lng: Math.round(lng * 1e5) / 1e5 };
+}
+
+/**
+ * Look up an address on OpenStreetMap (Nominatim), only when the person taps "Find on map".
+ * Used for prayer times and weather; city-level accuracy is plenty.
+ */
+export async function findLocation(query: string): Promise<{ lat?: number; lng?: number; label?: string; error?: string }> {
+  const q = query.trim();
+  if (q.length < 3) return { error: "Type the address first." };
+  if (q.length > 300) return { error: "That address is too long." };
+  // Try the full address, then drop the first part (building / street number) if nothing matches.
+  const attempts = [q, q.split(",").slice(1).join(",").trim()].filter((a) => a.length >= 3);
+  for (const attempt of attempts) {
+    try {
+      const params = new URLSearchParams({ q: attempt, format: "json", limit: "1" });
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        headers: { "User-Agent": "TravelBuddy/1.0 (group trip planner)", "Accept-Language": "en" },
+        signal: AbortSignal.timeout(6000),
+        cache: "no-store",
+      });
+      if (!res.ok) continue;
+      const hits = (await res.json()) as { lat: string; lon: string; display_name: string }[];
+      if (hits[0]) {
+        return {
+          lat: Math.round(Number(hits[0].lat) * 1e5) / 1e5,
+          lng: Math.round(Number(hits[0].lon) * 1e5) / 1e5,
+          label: hits[0].display_name.split(",").slice(0, 3).join(",").trim(),
+        };
+      }
+    } catch {
+      /* try the next form of the address */
+    }
+  }
+  return { error: "Couldn't find that address. Try a shorter one (area, city)." };
 }

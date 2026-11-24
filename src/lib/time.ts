@@ -58,6 +58,12 @@ function offsetMs(utcMs: number, tz: string): number {
   return Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute, w.second) - Math.floor(utcMs / 1000) * 1000;
 }
 
+/** UTC offset of `tz` around noon on `date` (YYYY-MM-DD), in hours (Tokyo = 9). */
+export function tzOffsetHours(tz: string, date: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return offsetMs(Date.UTC(y, m - 1, d, 12), tz) / 3_600_000;
+}
+
 /** Wall-clock "YYYY-MM-DDTHH:MM" at `tz` → the exact instant. Handles DST shifts. */
 export function zonedToUtc(local: string, tz: string): Date {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(local);

@@ -6,7 +6,7 @@ import { Field, inputCls, Masked, SheetActions, SheetForm, TzSelect, useDeviceTz
 import { dateRange, dayParts } from "@/lib/format";
 import { dateAt, dayAt, nights, timeAt, tzLabel, utcToZonedInput } from "@/lib/time";
 import { PLATFORMS, stayDirectionsUrl, stayMapUrl, type Stay, type StayTodo } from "@/lib/travel";
-import { addStayTodo, deleteStay, deleteStayTodo, saveStay, setStayTodoDone } from "../travel-actions";
+import { addStayTodo, deleteStay, deleteStayTodo, findLocation, saveStay, setStayTodoDone } from "../travel-actions";
 
 type Sheet = { mode: "new" } | { mode: "edit"; stay: Stay } | null;
 type Status = "past" | "now" | "upcoming";
@@ -594,6 +594,21 @@ function StaySheet({
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const effectiveTz = tz || deviceTz;
+  const [address, setAddress] = useState(s?.address ?? "");
+  const [loc, setLoc] = useState<{ lat: number; lng: number; label?: string } | null>(
+    s?.lat != null && s?.lng != null ? { lat: s.lat, lng: s.lng } : null,
+  );
+  const [locMsg, setLocMsg] = useState<string | null>(null);
+  const [finding, startFind] = useTransition();
+
+  function find() {
+    setLocMsg(null);
+    startFind(async () => {
+      const r = await findLocation(address).catch(() => ({ error: "Couldn't reach the server. Are you offline?" }) as { error: string });
+      if ("lat" in r && r.lat != null && r.lng != null) setLoc({ lat: r.lat, lng: r.lng, label: r.label });
+      else setLocMsg(r.error ?? "Couldn't find that address.");
+    });
+  }
 
   function submit(fd: FormData) {
     setError(null);
@@ -640,8 +655,36 @@ function StaySheet({
         </Field>
       </div>
       <Field label="Address (optional)">
-        <input name="address" maxLength={300} defaultValue={s?.address ?? ""} placeholder="2-chōme Nishiasakusa, Taitō City" className={inputCls} />
+        <input
+          name="address"
+          maxLength={300}
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="2-chōme Nishiasakusa, Taitō City"
+          className={inputCls}
+        />
       </Field>
+      <div className="flex flex-col gap-1.5 rounded-sm border border-line bg-surface p-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 flex-col">
+            <span className="text-xs text-muted">Map location · for prayer times & weather</span>
+            <span className="truncate text-sm">
+              {loc ? (loc.label ?? `${loc.lat.toFixed(3)}, ${loc.lng.toFixed(3)}`) : "Not set"}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={find}
+            disabled={finding || address.trim().length < 3}
+            className="flex-none rounded-sm border border-line bg-bg px-3 py-2 text-[13px] font-semibold"
+          >
+            {finding ? "Finding…" : loc ? "Find again" : "Find on map"}
+          </button>
+        </div>
+        {locMsg && <span className="text-xs text-bad">{locMsg}</span>}
+        <input type="hidden" name="lat" value={loc?.lat ?? ""} />
+        <input type="hidden" name="lng" value={loc?.lng ?? ""} />
+      </div>
       <Field label="Address in local language (optional, shown big for drivers)">
         <input name="address_local" maxLength={300} defaultValue={s?.address_local ?? ""} placeholder="東京都江東区大島3-20-25" className={inputCls} />
       </Field>

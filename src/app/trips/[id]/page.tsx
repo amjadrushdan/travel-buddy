@@ -2,12 +2,15 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { AvatarStack } from "@/components/Avatar";
 import { CoverPicker } from "@/components/CoverPicker";
+import { EditTripButton } from "@/components/EditTripButton";
+import { TripLinks } from "@/components/TripLinks";
 import { JoinedToast } from "@/components/JoinedToast";
 import { NextFlightCard } from "@/components/NextFlightCard";
 import { TodayCard } from "@/components/TodayCard";
 import { coverSrc } from "@/lib/cover";
-import { listItinerary } from "@/lib/data/itinerary";
-import { listFlights } from "@/lib/data/travel";
+import { listDayTitles, listItinerary } from "@/lib/data/itinerary";
+import { listFlights, listStays } from "@/lib/data/travel";
+import { listBookings, listDocuments } from "@/lib/data/bookings";
 import { getFlightStatuses, liveWindowBeforeMs } from "@/lib/data/flight-status";
 import { nextFlight } from "@/lib/travel";
 import { getTrip } from "@/lib/data/trips";
@@ -19,7 +22,15 @@ const SCRIM = "linear-gradient(180deg, rgba(0,0,0,.45) 0%, transparent 26%, tran
 
 export default async function TripHomePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [{ trip, members, me }, items, flights] = await Promise.all([getTrip(id), listItinerary(id), listFlights(id)]);
+  const [{ trip, members, me }, items, flights, titles, stays, bookings, docs] = await Promise.all([
+    getTrip(id),
+    listItinerary(id),
+    listFlights(id),
+    listDayTitles(id),
+    listStays(id),
+    listBookings(id),
+    listDocuments(id),
+  ]);
   const now = Date.now();
   const next = nextFlight(flights, now);
   const live = next ? await getFlightStatuses([next]) : {};
@@ -54,7 +65,12 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
               <Link href="/" className="py-1 text-[15px] font-semibold [text-shadow:0_1px_3px_rgba(0,0,0,.4)]">
                 ‹ Trips
               </Link>
-              {canEdit && <CoverPicker tripId={trip.id} hasCover onPhoto />}
+              {canEdit && (
+                <div className="flex items-center gap-2">
+                  <EditTripButton trip={trip} onPhoto />
+                  <CoverPicker tripId={trip.id} hasCover onPhoto />
+                </div>
+              )}
             </div>
             <div className={`mt-auto flex items-end justify-between gap-3 ${next ? "mb-[236px]" : "mb-6"}`}>
               <div className="flex min-w-0 flex-col gap-1.5 [text-shadow:0_1px_6px_rgba(0,0,0,.35)]">
@@ -79,7 +95,9 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
 
         <div className={next ? "relative z-[1] -mt-[242px] drop-shadow-[0_14px_22px_rgba(0,0,0,.3)]" : ""}>{flightCard}</div>
 
-        <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} />
+        <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} titles={titles} stays={stays} bookings={bookings} />
+
+        <TripLinks tripId={trip.id} bookings={bookings.length} documents={docs.length} />
 
         <Suspense>
           <JoinedToast tripName={trip.name} />
@@ -90,9 +108,12 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
 
   return (
     <main className="flex flex-col gap-[22px] px-5 pt-[calc(16px+env(safe-area-inset-top))]">
-      <Link href="/" className="self-start py-1 text-[15px] font-semibold">
-        ‹ Trips
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link href="/" className="py-1 text-[15px] font-semibold">
+          ‹ Trips
+        </Link>
+        {canEdit && <EditTripButton trip={trip} />}
+      </div>
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
@@ -115,7 +136,9 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
 
       {flightCard}
 
-      <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} />
+      <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} titles={titles} stays={stays} bookings={bookings} />
+
+        <TripLinks tripId={trip.id} bookings={bookings.length} documents={docs.length} />
 
       {canEdit && <CoverPicker tripId={trip.id} hasCover={false} onPhoto={false} />}
 
