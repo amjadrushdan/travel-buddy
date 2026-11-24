@@ -98,6 +98,23 @@ function readStay(fd: FormData) {
   const ref = str(fd, "booking_ref");
   const notes = str(fd, "notes");
   const tz = str(fd, "tz");
+  const platform = str(fd, "platform");
+  const host = str(fd, "host");
+  const addressLocal = str(fd, "address_local");
+  const bookingUrl = str(fd, "booking_url");
+  const checkinInfo = str(fd, "checkin_info");
+  const doorCode = str(fd, "door_code");
+  const wifi = str(fd, "wifi");
+
+  if (platform && !["airbnb", "booking", "agoda", "hotel", "other"].includes(platform))
+    return { error: "Pick where it's booked." } as const;
+  if (host.length > 80) return { error: "Keep the host under 80 characters." } as const;
+  if (addressLocal.length > 300) return { error: "Keep the local address under 300 characters." } as const;
+  if (bookingUrl && (!bookingUrl.startsWith("https://") || bookingUrl.length > 2000))
+    return { error: "The booking link must start with https://" } as const;
+  if (checkinInfo.length > 1000) return { error: "Keep check-in info under 1000 characters." } as const;
+  if (doorCode.length > 40) return { error: "Keep the door code under 40 characters." } as const;
+  if (wifi.length > 120) return { error: "Keep the Wi-Fi details under 120 characters." } as const;
 
   if (!name) return { error: "Give the stay a name." } as const;
   if (name.length > 120) return { error: "Keep the name under 120 characters." } as const;
@@ -123,8 +140,46 @@ function readStay(fd: FormData) {
       tz,
       booking_ref: ref || null,
       notes: notes || null,
+      platform: platform || null,
+      host: host || null,
+      address_local: addressLocal || null,
+      booking_url: bookingUrl || null,
+      checkin_info: checkinInfo || null,
+      door_code: doorCode || null,
+      wifi: wifi || null,
     },
   } as const;
+}
+
+// ---------------------------------------------------------------- stay to-dos
+
+export async function addStayTodo(tripId: string, stayId: string, text: string): Promise<ActionResult> {
+  const t = text.trim();
+  if (!t) return { error: "Type the to-do first." };
+  if (t.length > 300) return { error: "Keep it under 300 characters." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("stay_todos").insert({ trip_id: tripId, stay_id: stayId, text: t });
+  if (error) return { error: friendly(error) };
+  revalidatePath(`/trips/${tripId}/stay`);
+  return {};
+}
+
+export async function setStayTodoDone(tripId: string, todoId: string, done: boolean): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error, count } = await supabase.from("stay_todos").update({ done }, { count: "exact" }).eq("id", todoId).eq("trip_id", tripId);
+  if (error) return { error: friendly(error) };
+  if (!count) return { error: "Only owners and editors can tick to-dos." };
+  revalidatePath(`/trips/${tripId}/stay`);
+  return {};
+}
+
+export async function deleteStayTodo(tripId: string, todoId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error, count } = await supabase.from("stay_todos").delete({ count: "exact" }).eq("id", todoId).eq("trip_id", tripId);
+  if (error) return { error: friendly(error) };
+  if (!count) return { error: "Only owners and editors can remove to-dos." };
+  revalidatePath(`/trips/${tripId}/stay`);
+  return {};
 }
 
 export async function saveStay(tripId: string, id: string | null, fd: FormData): Promise<ActionResult> {

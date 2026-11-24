@@ -1,5 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
-import { FLIGHT_COLUMNS, STAY_COLUMNS, type Flight, type Stay } from "@/lib/travel";
+import { FLIGHT_COLUMNS, STAY_COLUMNS, STAY_TODO_COLUMNS, type Flight, type Stay, type StayTodo } from "@/lib/travel";
+
+/** A trip's stay to-dos, in list order. RLS limits this to members. */
+export async function listStayTodos(tripId: string): Promise<StayTodo[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("stay_todos")
+    .select(STAY_TODO_COLUMNS)
+    .eq("trip_id", tripId)
+    .order("sort_order")
+    .order("created_at")
+    .returns<StayTodo[]>();
+  if (error) throw error;
+  return data ?? [];
+}
 
 /** A trip's flights by departure. RLS limits this to members. */
 export async function listFlights(tripId: string): Promise<Flight[]> {

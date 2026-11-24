@@ -24,11 +24,44 @@ export type Stay = {
   tz: string;
   booking_ref: string | null;
   notes: string | null;
+  platform: StayPlatform | null;
+  host: string | null;
+  address_local: string | null;
+  booking_url: string | null;
+  checkin_info: string | null;
+  door_code: string | null;
+  wifi: string | null;
 };
+
+export type StayPlatform = "airbnb" | "booking" | "agoda" | "hotel" | "other";
+
+export const PLATFORMS: { key: StayPlatform; label: string; color: string }[] = [
+  { key: "airbnb", label: "Airbnb", color: "#FF385C" },
+  { key: "booking", label: "Booking.com", color: "#003580" },
+  { key: "agoda", label: "Agoda", color: "#5392F9" },
+  { key: "hotel", label: "Hotel", color: "#16181A" },
+  { key: "other", label: "Other", color: "#5F6265" },
+];
+
+export type StayTodo = {
+  id: string;
+  stay_id: string;
+  text: string;
+  done: boolean;
+  sort_order: number;
+};
+
+export const STAY_TODO_COLUMNS = "id, stay_id, text, done, sort_order";
+
+/** Google Maps directions to the stay from wherever the phone is. */
+export function stayDirectionsUrl(s: Pick<Stay, "address" | "name">): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.address?.trim() || s.name)}`;
+}
 
 export const FLIGHT_COLUMNS =
   "id, airline, flight_no, from_airport, to_airport, depart_at, depart_tz, arrive_at, arrive_tz, pnr, passengers";
-export const STAY_COLUMNS = "id, name, address, map_url, check_in, check_out, tz, booking_ref, notes";
+export const STAY_COLUMNS =
+  "id, name, address, map_url, check_in, check_out, tz, booking_ref, notes, platform, host, address_local, booking_url, checkin_info, door_code, wifi";
 
 /** "MH 88" → "MH88" for FlightAware, which resolves airline codes itself. */
 export function flightAwareUrl(flightNo: string): string {
