@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { dayParts, formatDay, localTime, localToday, shortTime } from "@/lib/format";
 import { LinkedText } from "@/components/LinkedText";
 import { mapLink, nowIndex, type ItineraryItem } from "@/lib/itinerary";
-import { deleteItem, reorderDay, saveItem } from "./actions";
+import { weatherLabel, type DayWeather } from "@/lib/weather";
+import { deleteItem, reorderDay, saveItem, setDayTitle } from "./actions";
 
 const input = "w-full rounded-sm border border-line bg-surface p-3 text-base outline-none focus:border-ink";
 
@@ -13,13 +14,16 @@ type Props = {
   tripName: string;
   days: string[];
   items: ItineraryItem[];
+  titles: Record<string, string>;
+  weather: Record<string, DayWeather>;
   canEdit: boolean;
   requestedDay: string | null;
 };
 
 type Sheet = { mode: "new" } | { mode: "edit"; item: ItineraryItem } | null;
 
-export function PlanView({ tripId, tripName, days, items, canEdit, requestedDay }: Props) {
+export function PlanView({ tripId, tripName, days, items, titles, weather, canEdit, requestedDay }: Props) {
+  const [titleSheet, setTitleSheet] = useState(false);
   const [day, setDay] = useState<string | null>(requestedDay ?? days[0] ?? null);
   const [now, setNow] = useState<{ date: string; time: string } | null>(null);
   const [reorder, setReorder] = useState(false);
@@ -148,13 +152,24 @@ export function PlanView({ tripId, tripName, days, items, canEdit, requestedDay 
 
       {day && (
         <div className="flex items-end justify-between gap-2.5 px-5">
-          <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex min-w-0 flex-col gap-1">
             <span className="text-xs text-muted">
               Day {dayNo} · {formatDay(day)}
+              {titles[day] ? ` · ${dayItems.length} ${dayItems.length === 1 ? "stop" : "stops"}` : ""}
             </span>
-            <span className="text-[19px] font-semibold">
-              {dayItems.length} {dayItems.length === 1 ? "stop" : "stops"}
-            </span>
+            {canEdit ? (
+              <button type="button" onClick={() => setTitleSheet(true)} className="group flex items-baseline gap-1.5 text-left">
+                <span className={`text-[20px] leading-tight font-semibold text-pretty ${titles[day] ? "" : "text-ink"}`}>
+                  {titles[day] ?? `${dayItems.length} ${dayItems.length === 1 ? "stop" : "stops"}`}
+                </span>
+                <span className="text-[13px] text-muted">{titles[day] ? "✎" : "· name this day"}</span>
+              </button>
+            ) : (
+              <span className="text-[20px] leading-tight font-semibold text-pretty">
+                {titles[day] ?? `${dayItems.length} ${dayItems.length === 1 ? "stop" : "stops"}`}
+              </span>
+            )}
+            {weather[day] && <WeatherLine w={weather[day]} />}
           </div>
           {canEdit && (
             <div className="flex flex-none gap-1.5">
@@ -282,8 +297,96 @@ export function PlanView({ tripId, tripName, days, items, canEdit, requestedDay 
       {sheet && (
         <ItemSheet tripId={tripId} sheet={sheet} defaultDay={day ?? ""} onClose={() => setSheet(null)} onDone={setToast} />
       )}
+      {titleSheet && day && (
+        <DayTitleSheet tripId={tripId} day={day} current={titles[day] ?? ""} onClose={() => setTitleSheet(false)} onDone={setToast} />
+      )}
       {toast && <Toast text={toast} />}
     </main>
+  );
+}
+
+/** "☁️ Cloudy · 4° / 11° · rain 20%" (snow amount when it snows). */
+function WeatherLine({ w }: { w: DayWeather }) {
+  const { icon, label } = weatherLabel(w.code);
+  const extra =
+    w.snowCm && w.snowCm >= 0.5 ? `snow ${Math.round(w.snowCm)} cm` : w.rain != null && w.rain >= 20 ? `rain ${w.rain}%` : null;
+  return (
+    <span className="flex items-center gap-1.5 text-[13px] text-muted">
+      <span aria-hidden>{icon}</span>
+      <span>
+        {label} · {w.tMin}° / {w.tMax}°{extra ? ` · ${extra}` : ""}
+      </span>
+    </span>
+  );
+}
+
+function DayTitleSheet({
+  tripId,
+  day,
+  current,
+  onClose,
+  onDone,
+}: {
+  tripId: string;
+  day: string;
+  current: string;
+  onClose: () => void;
+  onDone: (msg: string) => void;
+}) {
+  const [value, setValue] = useState(current);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  function save(title: string) {
+    setError(null);
+    start(async () => {
+      const res = await setDayTitle(tripId, day, title).catch(() => ({ error: "Couldn't reach the server. Are you offline?" }));
+      if (res.error) setError(res.error);
+      else {
+        onClose();
+        onDone(title.trim() ? "Day named" : "Title removed");
+      }
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/35" onClick={onClose}>
+      <form
+        role="dialog"
+        aria-label="Name this day"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          save(value);
+        }}
+        className="flex w-full max-w-[480px] flex-col gap-3.5 rounded-t-[22px] bg-bg px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
+      >
+        <div className="mx-auto h-1 w-10 rounded-full bg-line" />
+        <span className="text-xl font-bold">Name this day</span>
+        <span className="-mt-2 text-sm text-muted">{formatDay(day)}</span>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          maxLength={80}
+          autoFocus
+          placeholder="Harajuku & Shibuya"
+          className={input}
+        />
+        {error && (
+          <p role="alert" className="text-[13px] text-bad">
+            {error}
+          </p>
+        )}
+        <button type="submit" disabled={pending} className="rounded-sm bg-ink p-[15px] text-base font-semibold text-white">
+          {pending ? "Saving…" : "Save"}
+        </button>
+        {current && (
+          <button type="button" disabled={pending} onClick={() => save("")} className="rounded-sm border border-line bg-surface p-3 text-sm font-semibold text-muted">
+            Remove title
+          </button>
+        )}
+      </form>
+    </div>
   );
 }
 

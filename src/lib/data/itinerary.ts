@@ -3,6 +3,13 @@ import type { ItineraryItem } from "@/lib/itinerary";
 
 export const ITEM_COLUMNS = "id, day, start_time, title, place, map_url, notes, sort_order";
 
+/** Day titles by date ("2026-12-13" → "Harajuku day"). */
+export async function listDayTitles(tripId: string): Promise<Record<string, string>> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("plan_days").select("day, title").eq("trip_id", tripId);
+  return Object.fromEntries((data ?? []).map((r) => [r.day as string, r.title as string]));
+}
+
 /** All items of a trip, ordered by day then the group's chosen order. RLS limits this to members. */
 export async function listItinerary(tripId: string): Promise<ItineraryItem[]> {
   const supabase = await createClient();

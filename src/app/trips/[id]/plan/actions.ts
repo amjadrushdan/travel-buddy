@@ -141,3 +141,17 @@ export async function reorderDay(tripId: string, day: string, ids: string[]): Pr
   revalidate(tripId);
   return {};
 }
+
+/** Name a day ("Harajuku day"). An empty title removes it. */
+export async function setDayTitle(tripId: string, day: string, title: string): Promise<ActionResult> {
+  if (!DATE_RE.test(day)) return { error: "Bad day." };
+  const t = title.trim();
+  if (t.length > 80) return { error: "Keep the title under 80 characters." };
+  const supabase = await createClient();
+  const { error } = t
+    ? await supabase.from("plan_days").upsert({ trip_id: tripId, day, title: t }, { onConflict: "trip_id,day" })
+    : await supabase.from("plan_days").delete().eq("trip_id", tripId).eq("day", day);
+  if (error) return { error: error.code === "42501" ? "Only owners and editors can name days." : error.message };
+  revalidate(tripId);
+  return {};
+}

@@ -31,6 +31,8 @@ export type Stay = {
   checkin_info: string | null;
   door_code: string | null;
   wifi: string | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 export type StayPlatform = "airbnb" | "booking" | "agoda" | "hotel" | "other";
@@ -61,7 +63,7 @@ export function stayDirectionsUrl(s: Pick<Stay, "address" | "name">): string {
 export const FLIGHT_COLUMNS =
   "id, airline, flight_no, from_airport, to_airport, depart_at, depart_tz, arrive_at, arrive_tz, pnr, passengers";
 export const STAY_COLUMNS =
-  "id, name, address, map_url, check_in, check_out, tz, booking_ref, notes, platform, host, address_local, booking_url, checkin_info, door_code, wifi";
+  "id, name, address, map_url, check_in, check_out, tz, booking_ref, notes, platform, host, address_local, booking_url, checkin_info, door_code, wifi, lat, lng";
 
 /** "MH 88" → "MH88" for FlightAware, which resolves airline codes itself. */
 export function flightAwareUrl(flightNo: string): string {
