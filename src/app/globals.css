@@ -1,26 +1,69 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Travel Buddy — direction 2a tokens (see ../README.md) */
+@theme {
+  --color-bg: #f4f3ef;
+  --color-surface: #ffffff;
+  --color-ink: #16181a;
+  --color-muted: #5f6265;
+  --color-line: #e0ded7;
+
+  --color-hero: #16181a;
+  --color-hero-ink: #ffffff;
+  --color-hero-muted: #a9acaf;
+  --color-hero-line: #33363a;
+
+  --color-neutral-badge: #e9e7e1;
+  --color-warn: #ffc72c;
+  --color-warn-ink: #8a5300;
+  --color-good: #1e7b4a;
+  --color-bad: #c0262d;
+  --color-now: #e5322d;
+  --color-now-ink: #c8231e;
+
+  --font-sans: "Josefin Sans", system-ui, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, monospace;
+
+  --radius-sm: 8px;
+  --radius-card: 16px;
+  --radius-sheet: 22px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+@utility page-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
