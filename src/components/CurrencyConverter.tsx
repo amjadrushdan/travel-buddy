@@ -79,6 +79,10 @@ export function CurrencyConverter() {
   }
   function pick(c: string) {
     setCode(c);
+    // Keep the ringgit amount and show it in the new currency.
+    const r = rates?.rates[c];
+    const n = Number(myr.replace(/,/g, ""));
+    if (r && myr !== "" && Number.isFinite(n)) setForeign(fmt(n * r, c === "JPY" || c === "KRW" ? 0 : 2));
     try {
       localStorage.setItem(PICK, JSON.stringify(c));
     } catch {
