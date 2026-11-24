@@ -6,6 +6,7 @@ import { NextFlightCard } from "@/components/NextFlightCard";
 import { TodayCard } from "@/components/TodayCard";
 import { listItinerary } from "@/lib/data/itinerary";
 import { listFlights } from "@/lib/data/travel";
+import { getFlightStatuses, liveStatusEnabled } from "@/lib/data/flight-status";
 import { nextFlight } from "@/lib/travel";
 import { getTrip } from "@/lib/data/trips";
 import { tripDays } from "@/lib/itinerary";
@@ -14,6 +15,9 @@ import { daysUntil, formatDateRange } from "@/lib/format";
 export default async function TripHomePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [{ trip, members }, items, flights] = await Promise.all([getTrip(id), listItinerary(id), listFlights(id)]);
+  const now = Date.now();
+  const next = nextFlight(flights, now);
+  const live = next ? await getFlightStatuses([next]) : {};
   const days = daysUntil(trip.start_date);
   const subtitle = [trip.destination, formatDateRange(trip.start_date, trip.end_date)].filter(Boolean).join(" · ");
   const kicker = days === 0 ? "Departure day" : days !== null && days < 0 ? "On the trip" : "Next trip";
@@ -45,7 +49,13 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      <NextFlightCard tripId={trip.id} flight={nextFlight(flights, Date.now())} />
+      <NextFlightCard
+        tripId={trip.id}
+        flight={next}
+        live={next ? (live[next.id] ?? null) : null}
+        liveEnabled={liveStatusEnabled()}
+        nowMs={now}
+      />
 
       <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} />
 

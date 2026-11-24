@@ -5,6 +5,8 @@ import { Field, inputCls, Masked, SheetActions, SheetForm, TzSelect, useToast } 
 import { airport } from "@/lib/airports";
 import { dayAt, duration, timeAt, tzLabel, utcToZonedInput } from "@/lib/time";
 import { flightAwareUrl, type Flight } from "@/lib/travel";
+import type { LiveStatus } from "@/lib/data/flight-status";
+import { BADGE_CLS, changedTime, statusBadge, statusNote } from "@/lib/flight-status-map";
 import { deleteFlight, saveFlight } from "../travel-actions";
 
 type Member = { id: string; name: string };
@@ -17,6 +19,9 @@ export function FlightsView({
   flights,
   members,
   canEdit,
+  live,
+  liveEnabled,
+  renderedAt,
 }: {
   tripId: string;
   tripName: string;
@@ -24,6 +29,9 @@ export function FlightsView({
   flights: Flight[];
   members: Member[];
   canEdit: boolean;
+  live: Record<string, LiveStatus | null>;
+  liveEnabled: boolean;
+  renderedAt: number;
 }) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [toast, setToast] = useToast();
@@ -62,6 +70,9 @@ export function FlightsView({
           key={f.id}
           f={f}
           pax={f.passengers.length}
+          live={live[f.id] ?? null}
+          liveEnabled={liveEnabled}
+          renderedAt={renderedAt}
           onEdit={canEdit ? () => setSheet({ mode: "edit", flight: f }) : undefined}
         />
       ))}
@@ -81,10 +92,27 @@ export function FlightsView({
   );
 }
 
-function FlightCard({ f, pax, onEdit }: { f: Flight; pax: number; onEdit?: () => void }) {
+function FlightCard({
+  f,
+  pax,
+  live,
+  liveEnabled,
+  renderedAt,
+  onEdit,
+}: {
+  f: Flight;
+  pax: number;
+  live: LiveStatus | null;
+  liveEnabled: boolean;
+  renderedAt: number;
+  onEdit?: () => void;
+}) {
   const from = airport(f.from_airport);
   const to = airport(f.to_airport);
-  const liveFrom = new Date(new Date(f.depart_at).getTime() - 24 * 3_600_000).toISOString();
+  const badge = statusBadge(live);
+  const late = live?.status === "delayed";
+  const estDep = live && live.status !== "cancelled" ? changedTime(f.depart_at, live.est_departure) : null;
+  const estArr = live && live.status !== "cancelled" ? changedTime(f.arrive_at, live.est_arrival) : null;
 
   return (
     <article className="relative rounded-card border border-line bg-surface">
@@ -94,29 +122,23 @@ function FlightCard({ f, pax, onEdit }: { f: Flight; pax: number; onEdit?: () =>
             {f.airline ? `${f.airline} · ` : ""}
             <span className="font-mono font-semibold text-ink">{f.flight_no}</span>
           </span>
-          <span className="rounded-sm bg-neutral-badge px-2 py-1 font-mono text-xs font-semibold">Scheduled</span>
+          <span className={`rounded-sm px-2 py-1 font-mono text-xs font-semibold ${BADGE_CLS[badge.tone]}`}>{badge.label}</span>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2.5">
-          <div className="flex flex-col gap-[3px]">
-            <span className="font-mono text-[34px] leading-none font-semibold">{f.from_airport}</span>
-            <span className="text-xs text-muted">{from?.city ?? " "}</span>
-            <span className="mt-2 font-mono text-[22px] font-medium">{timeAt(f.depart_at, f.depart_tz)}</span>
-            <span className="text-xs text-muted">
-              {dayAt(f.depart_at, f.depart_tz)} · {tzLabel(f.depart_tz, f.depart_at)}
-            </span>
-          </div>
+          <End
+            align="start"
+            code={f.from_airport}
+            city={from?.city}
+            scheduled={f.depart_at}
+            estimate={estDep}
+            tz={f.depart_tz}
+            late={late}
+          />
           <div className="flex flex-col items-center gap-1 pt-3">
             <span className="h-px w-11 bg-muted" />
             <span className="font-mono text-[11px] text-muted">{duration(f.depart_at, f.arrive_at)}</span>
           </div>
-          <div className="flex flex-col items-end gap-[3px] text-right">
-            <span className="font-mono text-[34px] leading-none font-semibold">{f.to_airport}</span>
-            <span className="text-xs text-muted">{to?.city ?? " "}</span>
-            <span className="mt-2 font-mono text-[22px] font-medium">{timeAt(f.arrive_at, f.arrive_tz)}</span>
-            <span className="text-xs text-muted">
-              {dayAt(f.arrive_at, f.arrive_tz)} · {tzLabel(f.arrive_tz, f.arrive_at)}
-            </span>
-          </div>
+          <End align="end" code={f.to_airport} city={to?.city} scheduled={f.arrive_at} estimate={estArr} tz={f.arrive_tz} late={late} />
         </div>
       </div>
 
@@ -132,14 +154,12 @@ function FlightCard({ f, pax, onEdit }: { f: Flight; pax: number; onEdit?: () =>
           <Masked value={f.pnr} className="text-[15px]" />
         </div>
         <Stat label="Pax" value={pax ? String(pax) : "—"} />
-        <Stat label="Gate" value="—" />
-        <Stat label="Term." value="—" />
+        <Stat label="Gate" value={live?.gate_dep ?? "—"} />
+        <Stat label="Term." value={live?.terminal_dep ?? "—"} />
       </div>
 
       <div className="flex items-center justify-between gap-2.5 border-t border-line px-4 pt-2.5 pb-3.5 text-xs text-muted">
-        <span className="text-pretty">
-          Live status from {dayAt(liveFrom, f.depart_tz)}, {timeAt(liveFrom, f.depart_tz)}
-        </span>
+        <span className="text-pretty">{statusNote(f, live, liveEnabled, renderedAt)}</span>
         <a href={flightAwareUrl(f.flight_no)} target="_blank" rel="noopener noreferrer" className="font-semibold whitespace-nowrap text-ink">
           Track on FlightAware ↗
         </a>
@@ -150,6 +170,37 @@ function FlightCard({ f, pax, onEdit }: { f: Flight; pax: number; onEdit?: () =>
         </button>
       )}
     </article>
+  );
+}
+
+function End({
+  align,
+  code,
+  city,
+  scheduled,
+  estimate,
+  tz,
+  late,
+}: {
+  align: "start" | "end";
+  code: string;
+  city?: string;
+  scheduled: string;
+  estimate: string | null;
+  tz: string;
+  late: boolean;
+}) {
+  const shown = estimate ?? scheduled;
+  return (
+    <div className={`flex flex-col gap-[3px] ${align === "end" ? "items-end text-right" : ""}`}>
+      <span className="font-mono text-[34px] leading-none font-semibold">{code}</span>
+      <span className="text-xs text-muted">{city ?? "\u00a0"}</span>
+      <span className={`mt-2 font-mono text-[22px] font-medium ${estimate && late ? "text-warn-ink" : ""}`}>{timeAt(shown, tz)}</span>
+      {estimate && <span className="font-mono text-xs text-muted line-through">Sched. {timeAt(scheduled, tz)}</span>}
+      <span className="text-xs text-muted">
+        {dayAt(shown, tz)} · {tzLabel(tz, shown)}
+      </span>
+    </div>
   );
 }
 

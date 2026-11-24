@@ -1,10 +1,24 @@
 import Link from "next/link";
 import { airport } from "@/lib/airports";
+import type { LiveStatus } from "@/lib/data/flight-status";
+import { BADGE_CLS, changedTime, statusBadge, statusNote } from "@/lib/flight-status-map";
 import { dayAt, duration, shortDayAt, timeAt } from "@/lib/time";
 import { flightAwareUrl, type Flight } from "@/lib/travel";
 
 /** Home's dark boarding pass for the next flight. Times are local at each airport. */
-export function NextFlightCard({ tripId, flight }: { tripId: string; flight: Flight | null }) {
+export function NextFlightCard({
+  tripId,
+  flight,
+  live,
+  liveEnabled,
+  nowMs,
+}: {
+  tripId: string;
+  flight: Flight | null;
+  live: LiveStatus | null;
+  liveEnabled: boolean;
+  nowMs: number;
+}) {
   const href = `/trips/${tripId}/flights`;
 
   if (!flight) {
@@ -19,7 +33,11 @@ export function NextFlightCard({ tripId, flight }: { tripId: string; flight: Fli
   const f = flight;
   const from = airport(f.from_airport);
   const to = airport(f.to_airport);
-  const liveFrom = new Date(new Date(f.depart_at).getTime() - 24 * 3_600_000).toISOString();
+  const badge = statusBadge(live);
+  const late = live?.status === "delayed";
+  const estDep = live && live.status !== "cancelled" ? changedTime(f.depart_at, live.est_departure) : null;
+  const estArr = live && live.status !== "cancelled" ? changedTime(f.arrive_at, live.est_arrival) : null;
+  const timeCls = late ? "text-warn" : "";
 
   return (
     <div className="flex flex-col text-hero-ink">
@@ -28,12 +46,13 @@ export function NextFlightCard({ tripId, flight }: { tripId: string; flight: Fli
           <span className="font-mono text-[11px] tracking-[.1em] text-hero-muted uppercase">
             Next flight · {dayAt(f.depart_at, f.depart_tz)}
           </span>
-          <span className="rounded-sm bg-neutral-badge px-2 py-1 font-mono text-xs font-semibold text-ink">Scheduled</span>
+          <span className={`rounded-sm px-2 py-1 font-mono text-xs font-semibold ${BADGE_CLS[badge.tone]}`}>{badge.label}</span>
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2.5">
           <div className="flex flex-col gap-0.5">
             <span className="font-mono text-[40px] leading-none font-semibold tracking-[-0.02em]">{f.from_airport}</span>
-            <span className="font-mono text-xl font-medium">{timeAt(f.depart_at, f.depart_tz)}</span>
+            <span className={`font-mono text-xl font-medium ${estDep ? timeCls : ""}`}>{timeAt(estDep ?? f.depart_at, f.depart_tz)}</span>
+            {estDep && <span className="font-mono text-xs text-hero-muted line-through">{timeAt(f.depart_at, f.depart_tz)}</span>}
             {from && <span className="text-xs text-hero-muted">{from.city}</span>}
           </div>
           <div className="flex flex-col items-center gap-1 pb-2.5">
@@ -43,7 +62,8 @@ export function NextFlightCard({ tripId, flight }: { tripId: string; flight: Fli
           </div>
           <div className="flex flex-col items-end gap-0.5 text-right">
             <span className="font-mono text-[40px] leading-none font-semibold tracking-[-0.02em]">{f.to_airport}</span>
-            <span className="font-mono text-xl font-medium">{timeAt(f.arrive_at, f.arrive_tz)}</span>
+            <span className={`font-mono text-xl font-medium ${estArr ? timeCls : ""}`}>{timeAt(estArr ?? f.arrive_at, f.arrive_tz)}</span>
+            {estArr && <span className="font-mono text-xs text-hero-muted line-through">{timeAt(f.arrive_at, f.arrive_tz)}</span>}
             {to && <span className="text-xs text-hero-muted">{to.city}</span>}
           </div>
         </div>
@@ -52,14 +72,12 @@ export function NextFlightCard({ tripId, flight }: { tripId: string; flight: Fli
         <span className="absolute -top-[11px] -left-[11px] size-5 rounded-full bg-bg" />
         <span className="absolute -top-[11px] -right-[11px] size-5 rounded-full bg-bg" />
         <div className="grid grid-cols-3 gap-2">
-          <HeroStat label="Gate" value="—" />
-          <HeroStat label="Terminal" value="—" />
+          <HeroStat label="Gate" value={live?.gate_dep ?? "—"} />
+          <HeroStat label="Terminal" value={live?.terminal_dep ?? "—"} />
           <HeroStat label="Departs" value={shortDayAt(f.depart_at, f.depart_tz)} />
         </div>
         <div className="flex justify-between gap-2 text-xs text-hero-muted">
-          <span>
-            Live status from {dayAt(liveFrom, f.depart_tz)}, {timeAt(liveFrom, f.depart_tz)}
-          </span>
+          <span>{statusNote(f, live, liveEnabled, nowMs)}</span>
           <a
             href={flightAwareUrl(f.flight_no)}
             target="_blank"
