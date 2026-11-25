@@ -167,7 +167,7 @@ export function FoodView({
           </button>
         </div>
         <p className="pt-1 text-[13px] text-pretty text-muted">
-          Checks the ingredients for pork, alcohol and doubtful words. Not a halal certification: look for a halal logo when it matters.
+          Flags pork, alcohol and doubtful ingredients. Not a halal certificate.
         </p>
       </div>
 
@@ -175,13 +175,13 @@ export function FoodView({
 
       {checks.length > 0 && (
         <section className="flex flex-col gap-2.5">
-          <span className="label">Checked by the group</span>
+          <span className="label">Saved by the group</span>
           <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
             {checks.map((c) => {
               const f = fromCheck(c);
               return (
                 <li key={c.id}>
-                  <Row verdict={verdictOf(f)} title={c.name || c.barcode || "Label"} sub={`${f.by} · ${shortDate(c.updated_at)}`} onClick={() => setFound(f)} />
+                  <Row verdict={verdictOf(f)} title={c.name || c.barcode || "Label"} sub={`${VERDICT[verdictOf(f)].title} · ${f.by}, ${shortDate(c.updated_at)}`} onClick={() => setFound(f)} />
                 </li>
               );
             })}
@@ -191,14 +191,14 @@ export function FoodView({
 
       {recent.length > 0 && (
         <section className="flex flex-col gap-2.5">
-          <span className="label">Your recent scans</span>
+          <span className="label">Recent scans</span>
           <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
             {recent.slice(0, 10).map((r) => (
               <li key={`${r.code}-${r.at}`}>
                 <Row
                   verdict={r.status as Verdict}
                   title={r.name || r.code || "Label"}
-                  sub={shortDate(r.at)}
+                  sub={`${VERDICT[r.status as Verdict]?.title ?? "Not checked"} · ${shortDate(r.at)}`}
                   onClick={() => (r.code ? lookup(r.code) : undefined)}
                 />
               </li>
@@ -321,25 +321,34 @@ function OfflineRow({
 
 // ---------------------------------------------------------------- result
 
+// One plain word or two for each result; the reason goes underneath.
 const VERDICT: Record<Verdict, { title: string; cls: string }> = {
-  contains: { title: "Contains pork or alcohol", cls: "border-bad/30 bg-bad/10 text-bad" },
-  check: { title: "Check before eating", cls: "border-warn bg-warn/25 text-warn-ink" },
-  clear: { title: "No flagged ingredients found", cls: "border-line bg-neutral-badge text-ink" },
-  label: { title: "Halal label listed", cls: "border-good/40 bg-good/10 text-good" },
-  unknown: { title: "Ingredients not known", cls: "border-dashed border-line bg-surface text-ink" },
+  contains: { title: "Not halal", cls: "border-bad/30 bg-bad/10 text-bad" },
+  check: { title: "Doubtful", cls: "border-warn bg-warn/25 text-warn-ink" },
+  clear: { title: "No haram ingredients found", cls: "border-line bg-neutral-badge text-ink" },
+  label: { title: "Halal label", cls: "border-good/40 bg-good/10 text-good" },
+  unknown: { title: "Not checked", cls: "border-dashed border-line bg-surface text-ink" },
 };
 
 const HIT_CLS: Record<Level, string> = {
   haram: "bg-bad/15 text-bad font-semibold",
   alcohol: "bg-bad/15 text-bad font-semibold",
   doubtful: "bg-warn/35 text-warn-ink font-semibold",
-  info: "bg-transparent text-inherit underline decoration-dotted underline-offset-2",
+  info: "bg-transparent text-inherit",
 };
 
-function containsTitle(hits: Hit[]) {
-  const pork = hits.some((h) => h.level === "haram");
-  const alcohol = hits.some((h) => h.level === "alcohol");
-  return pork && alcohol ? "Contains pork and alcohol" : pork ? "Contains pork" : "Contains alcohol";
+/** The reason under the verdict, e.g. "Contains 豚脂 (pork fat), みりん (mirin)". */
+function reason(v: Verdict, hits: Hit[], f: Pick<Found, "offline" | "name">): string {
+  const words = (levels: Level[]) =>
+    summarize(hits)
+      .filter((h) => levels.includes(h.level))
+      .map((h) => `${h.word} (${h.gloss})`)
+      .join(", ");
+  if (v === "contains") return `Contains ${words(["haram", "alcohol"])}`;
+  if (v === "check") return `Source not stated: ${words(["doubtful"])}`;
+  if (v === "clear") return "Not certified. Look for a halal logo to be sure.";
+  if (v === "label") return "Listed as halal. Check the logo on the pack.";
+  return f.offline ? "You're offline and the Japan list isn't downloaded." : f.name ? "We have the name but not the ingredients." : "This barcode isn't in our list.";
 }
 
 function Highlighted({ text, hits }: { text: string; hits: Hit[] }) {
@@ -375,6 +384,19 @@ function Sheet({ onClose, children, label }: { onClose: () => void; children: Re
   );
 }
 
+function Source({ f }: { f: Found }) {
+  const off = (
+    <a className="underline" href={f.code ? `https://world.openfoodfacts.org/product/${f.code}` : "https://world.openfoodfacts.org"} target="_blank" rel="noopener noreferrer">
+      Open Food Facts
+    </a>
+  );
+  if (f.source === "off") return <>Source: {off}</>;
+  if (f.source === "group") return <>Source: label photo by {f.by}{f.at ? `, ${shortDate(f.at)}` : ""}</>;
+  if (f.source === "photo") return <>Source: your photo (not saved)</>;
+  if (f.name) return <>Name from {off}</>;
+  return null;
+}
+
 function ResultSheet({
   f,
   canDelete,
@@ -392,11 +414,7 @@ function ResultSheet({
 }) {
   const r = checkIngredients(f.ingredients);
   const v = verdictOf(f);
-  const flagged = summarize(r.hits).filter((h) => h.level !== "info");
-  const notes = summarize(r.hits).filter((h) => h.level === "info");
-  const [showAll, setShowAll] = useState(v !== "clear");
   const [pending, start] = useTransition();
-  const title = v === "contains" ? containsTitle(r.hits) : VERDICT[v].title;
 
   return (
     <Sheet onClose={onClose} label="Food check result">
@@ -405,87 +423,47 @@ function ResultSheet({
         {f.code && <span className="font-mono text-[12px] text-muted">{f.code}</span>}
       </div>
 
-      <div className={`flex flex-col gap-1.5 rounded-card border px-4 py-3.5 ${VERDICT[v].cls}`}>
-        <span className="text-[18px] font-bold">{title}</span>
-        {flagged.length > 0 && (
-          <ul className="flex flex-col gap-0.5 text-[14px]">
-            {flagged.map((h) => (
-              <li key={h.word}>
-                <span className="font-semibold">{h.word}</span> · {h.gloss}
-              </li>
-            ))}
-          </ul>
-        )}
-        {v === "clear" && <span className="text-[13px]">Not a halal certification. Look for a halal logo to be sure.</span>}
-        {v === "label" && <span className="text-[13px]">As listed on Open Food Facts. Check the logo on the pack.</span>}
-        {v === "unknown" && (
-          <span className="text-[13px]">
-            {f.offline
-              ? "You're offline and the Japan list isn't downloaded."
-              : f.name
-                ? "We know this product, but not its ingredients."
-                : "This barcode isn't in our list."}{" "}
-            Take a photo of the 原材料 (ingredients) label to check it.
-          </span>
-        )}
+      <div className={`flex flex-col gap-1 rounded-card border px-4 py-3.5 ${VERDICT[v].cls}`}>
+        <span className="text-[20px] leading-tight font-bold">{VERDICT[v].title}</span>
+        <span className="text-[14px] [overflow-wrap:anywhere]">{reason(v, r.hits, f)}</span>
       </div>
 
       {v === "unknown" ? (
         <button type="button" onClick={onPhoto} className="rounded-sm bg-ink p-[13px] text-[15px] font-semibold text-white">
-          Take a photo of the label
+          Take a photo of the ingredients label
         </button>
       ) : (
-        <div className="flex flex-col gap-2">
-          <button type="button" onClick={() => setShowAll((s) => !s)} className="label self-start" aria-expanded={showAll}>
-            Ingredients {showAll ? "▴" : "▾"}
-          </button>
-          {showAll && <Highlighted text={r.text} hits={r.hits} />}
-          {notes.length > 0 && (
-            <span className="text-[12px] text-muted">
-              Also: {notes.map((h) => `${h.word} (${h.gloss})`).join(", ")}
-            </span>
-          )}
+        <div className="flex flex-col gap-1.5">
+          <span className="label">Ingredients</span>
+          <Highlighted text={r.text} hits={r.hits} />
         </div>
       )}
 
       <span className="text-[12px] text-muted">
-        {f.source === "off" && (
-          <>
-            Ingredients from{" "}
-            <a className="underline" href={f.code ? `https://world.openfoodfacts.org/product/${f.code}` : "https://world.openfoodfacts.org"} target="_blank" rel="noopener noreferrer">
-              Open Food Facts
-            </a>{" "}
-            (ODbL), which may be out of date.
-          </>
-        )}
-        {f.source === "group" && `Read from the label by ${f.by}${f.at ? ` · ${shortDate(f.at)}` : ""}.`}
-        {f.source === "photo" && "Read from your photo. Check it matches the label."}
-        {f.source === "none" && f.name && (
-          <>
-            Product name from{" "}
-            <a className="underline" href="https://world.openfoodfacts.org" target="_blank" rel="noopener noreferrer">
-              Open Food Facts
-            </a>{" "}
-            (ODbL).
-          </>
-        )}
+        <Source f={f} />
       </span>
 
-      <div className="flex gap-2">
-        {v !== "unknown" && (
-          <button type="button" onClick={onPhoto} className={secondary}>
-            Re-read label
-          </button>
-        )}
-        <button type="button" onClick={onScan} className={secondary}>
+      {v !== "unknown" && (
+        <button type="button" onClick={onScan} className="rounded-sm bg-ink p-[13px] text-[15px] font-semibold text-white">
           Scan another
         </button>
-      </div>
-      {canDelete && f.source === "group" && (
-        <button type="button" disabled={pending} onClick={() => start(onDelete)} className="self-center text-[13px] font-semibold text-muted">
-          Remove this check
-        </button>
       )}
+      <div className="flex justify-center gap-5 text-[13px] font-semibold text-muted">
+        {v === "unknown" ? (
+          <button type="button" onClick={onScan}>
+            Scan another
+          </button>
+        ) : (
+          <button type="button" onClick={onPhoto}>
+            Re-read the label
+          </button>
+        )}
+        {canDelete && f.source === "group" && (
+          <button type="button" disabled={pending} onClick={() => start(onDelete)}>
+            Remove
+          </button>
+        )}
+      </div>
     </Sheet>
   );
 }
@@ -540,11 +518,11 @@ function LabelSheet({
   }, [file, online]);
 
   const r = checkIngredients(text);
-  const v = r.status === "unknown" ? "unknown" : r.status;
+  const v: Verdict = r.status;
 
   return (
     <Sheet onClose={onClose} label="Read ingredients label">
-      <span className="text-[19px] font-bold">Ingredients label</span>
+      <span className="text-[19px] font-bold">Read the label</span>
       {preview && (
         // eslint-disable-next-line @next/next/no-img-element -- local photo preview
         <img src={preview} alt="Your photo of the label" className="max-h-40 w-full rounded-sm object-contain" />
@@ -561,19 +539,14 @@ function LabelSheet({
       ) : (
         <>
           {error && <span className="text-[14px] text-bad">{error}</span>}
-          <div className={`rounded-card border px-4 py-3 text-[16px] font-bold ${VERDICT[v].cls}`}>
-            {v === "contains" ? containsTitle(r.hits) : v === "unknown" ? "No text yet" : VERDICT[v].title}
-            {summarize(r.hits).filter((h) => h.level !== "info").length > 0 && (
-              <span className="mt-1 block text-[13px] font-normal">
-                {summarize(r.hits)
-                  .filter((h) => h.level !== "info")
-                  .map((h) => `${h.word} (${h.gloss})`)
-                  .join(", ")}
-              </span>
-            )}
-          </div>
+          {v !== "unknown" && (
+            <div className={`flex flex-col gap-1 rounded-card border px-4 py-3 ${VERDICT[v].cls}`}>
+              <span className="text-[18px] leading-tight font-bold">{VERDICT[v].title}</span>
+              <span className="text-[13px] [overflow-wrap:anywhere]">{reason(v, r.hits, { name: null })}</span>
+            </div>
+          )}
           <label className="flex flex-col gap-1.5">
-            <span className="text-[13px] font-semibold text-muted">What it read: fix any mistakes, it re-checks as you type</span>
+            <span className="text-[13px] font-semibold text-muted">Text from the photo · fix any mistakes</span>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -588,7 +561,7 @@ function LabelSheet({
           </label>
           <div className="flex gap-2">
             <button type="button" disabled={!text.trim()} onClick={() => onUse(name.trim() || null, text)} className={`${secondary} disabled:opacity-50`}>
-              Just check
+              Check only
             </button>
             <button
               type="button"
@@ -602,10 +575,9 @@ function LabelSheet({
               }
               className="flex-1 rounded-sm bg-ink py-3 text-[14px] font-semibold text-white disabled:opacity-50"
             >
-              {pending ? "Saving…" : "Save for the group"}
+              {pending ? "Saving…" : "Save for group"}
             </button>
           </div>
-          {!online && <span className="text-[12px] text-muted">Saving for the group needs a connection.</span>}
         </>
       )}
     </Sheet>
