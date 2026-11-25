@@ -6,6 +6,11 @@ import { TABS } from "./TabBar";
 
 const MORE = [
   {
+    key: "food",
+    label: "Food check",
+    icon: <path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8" />,
+  },
+  {
     key: "bookings",
     label: "Bookings",
     icon: (

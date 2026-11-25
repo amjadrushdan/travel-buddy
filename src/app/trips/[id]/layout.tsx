@@ -6,7 +6,7 @@ import { getTrip } from "@/lib/data/trips";
 import { coverSrc } from "@/lib/cover";
 import { formatDateRange } from "@/lib/format";
 
-const TABS = ["", "/flights", "/plan", "/stay", "/guide", "/members"];
+const TABS = ["", "/flights", "/plan", "/stay", "/guide", "/food", "/members"];
 
 export default async function TripLayout({
   children,

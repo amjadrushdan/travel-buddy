@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { Markdown } from "@/components/Markdown";
 import { Field, inputCls, SheetActions, SheetForm, useToast } from "@/components/ui";
@@ -59,15 +60,23 @@ export function GuideView({
           <span className="label">{tripName} · shared notes</span>
           <h1 className="page-title">Guide</h1>
         </div>
-        {canEdit && guides.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setSheet({ mode: "new" })}
-            className="rounded-sm bg-ink px-3 py-[7px] text-[13px] font-semibold text-white"
+        <div className="flex flex-none gap-1.5">
+          <Link
+            href={`/trips/${tripId}/food`}
+            className="rounded-sm border border-line bg-surface px-3 py-[7px] text-[13px] font-semibold transition-colors hover:bg-ink/[.03]"
           >
-            + Add
-          </button>
-        )}
+            Scan food
+          </Link>
+          {canEdit && guides.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSheet({ mode: "new" })}
+              className="rounded-sm bg-ink px-3 py-[7px] text-[13px] font-semibold text-white"
+            >
+              + Add
+            </button>
+          )}
+        </div>
       </div>
 
       {used.length > 1 && (

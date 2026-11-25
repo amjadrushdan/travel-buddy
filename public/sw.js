@@ -5,6 +5,9 @@
 // - Build assets (/_next/static, fonts): cache first; their file names change on every build.
 // - Next.js data requests (RSC) and server actions pass straight through. When those fail
 //   offline, Next falls back to a full page load, which this worker then serves from the cache.
+// - Food scanner: the barcode/label readers (/scan-v*/) are cache first (versioned folder);
+//   Japan product shards (/food/jp/*.json) are served from the cache and refreshed in the
+//   background. The full offline list lives in the "tb-food" cache, which the page manages.
 // - The page can ask the worker to "warm" a list of same-origin paths (the trip's other tabs)
 //   so they are saved too, and to "clear" saved pages (e.g. after leaving a trip).
 
@@ -14,6 +17,7 @@ const ASSETS = `tb-assets-${VERSION}`;
 const OFFLINE_URL = "/offline";
 const NETWORK_TIMEOUT_MS = 6000;
 const MAX_WARM = 12;
+const FOOD = "tb-food"; // offline Japan product list, saved on request by the Food page
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -29,7 +33,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k.startsWith("tb-") && k !== PAGES && k !== ASSETS).map((k) => caches.delete(k)));
+      await Promise.all(keys.filter((k) => k.startsWith("tb-") && k !== PAGES && k !== ASSETS && k !== FOOD).map((k) => caches.delete(k)));
       await self.clients.claim();
     })(),
   );
@@ -132,6 +136,19 @@ async function cover(request) {
   return res;
 }
 
+// Serve the saved copy at once and refresh it in the background.
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(ASSETS);
+  const hit = await cache.match(request);
+  const fresh = fetch(request)
+    .then((res) => {
+      if (res.ok) cache.put(request, res.clone());
+      return res;
+    })
+    .catch(() => null);
+  return hit || (await fresh) || Response.error();
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -146,6 +163,14 @@ self.addEventListener("fetch", (event) => {
   const isDoc = /^\/trips\/[0-9a-f-]{36}\/docs\/[0-9a-f-]{36}$/.test(url.pathname);
   if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/airline-logo/") || isDoc) {
     event.respondWith(asset(request));
+    return;
+  }
+  if (url.pathname.startsWith("/scan-v")) {
+    event.respondWith(asset(request));
+    return;
+  }
+  if (/^/food/jp/d{4}.json$/.test(url.pathname)) {
+    event.respondWith(staleWhileRevalidate(request));
     return;
   }
   if (isCover(url)) {
