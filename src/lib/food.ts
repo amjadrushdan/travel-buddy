@@ -61,7 +61,8 @@ export async function refreshOfflineList(): Promise<ListInfo | null> {
 
 export async function downloadOfflineList(): Promise<ListInfo> {
   const cache = await caches.open(FOOD_CACHE);
-  await cache.addAll([ALL, "/food/jp/version.json"]);
+  // Bypass the browser's HTTP cache, or a stale version.json would make every visit re-download.
+  await cache.addAll([ALL, "/food/jp/version.json"].map((u) => new Request(u, { cache: "reload" })));
   all = null;
   return (await offlineList())!;
 }

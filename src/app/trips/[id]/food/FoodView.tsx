@@ -457,10 +457,12 @@ function ResultSheet({
           Take a photo of the ingredients label
         </button>
       ) : (
+        r.text && (
         <div className="flex flex-col gap-1.5">
           <span className="label">Ingredients</span>
           <Highlighted text={r.text} hits={r.hits} />
         </div>
+        )
       )}
 
       <span className="text-[12px] text-muted">
