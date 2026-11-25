@@ -340,8 +340,8 @@ const HIT_CLS: Record<Level, string> = {
 /** "mirin (rice wine)" → "mirin, rice wine"; drop "(source not stated)", which the line already says. */
 const plain = (gloss: string) =>
   gloss
-    .replace(/s*(source not stated)/, "")
-    .replace(/s*(([^)]*))/, ", $1");
+    .replace(/\s*\(source not stated\)/, "")
+    .replace(/\s*\(([^)]*)\)/, ", $1");
 
 /** The reason under the verdict, e.g. "Contains 豚脂 (pork fat), みりん (mirin)". */
 function reason(v: Verdict, hits: Hit[], f: Pick<Found, "offline" | "name">): string {
