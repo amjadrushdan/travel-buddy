@@ -86,3 +86,9 @@ test("spaces inside Japanese text and web markup are ignored", () => {
 test("plain milk is clear", () => {
   assert.equal(checkIngredients("生乳100%").status, "clear");
 });
+
+test("cheese and whey are doubtful, milk is not", () => {
+  assert.equal(checkIngredients("小麦粉、チーズパウダー").status, "check");
+  assert.deepEqual(words("ナチュラルチーズ、ホエイパウダー、乳清たんぱく"), ["チーズ", "ホエイパウダー", "乳清"]);
+  assert.equal(checkIngredients("牛乳、砂糖、脱脂粉乳").status, "clear");
+});

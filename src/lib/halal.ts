@@ -65,6 +65,13 @@ const TERMS: Term[] = [
   { w: "加工油脂", g: "processed fat (source not stated)", l: "doubtful" },
   { w: "食用油脂", g: "edible fat (source not stated)", l: "doubtful" },
   { w: "レンネット", g: "rennet (source not stated)", l: "doubtful" },
+  // Cheese and whey: Japanese labels never say where the rennet came from (JAKIM treats these
+  // as doubtful unless the source is known). Plain milk (牛乳, 生乳) is not flagged.
+  { w: "チーズ", g: "cheese (rennet)", l: "doubtful" },
+  { w: "ホエイパウダー", g: "whey powder (rennet)", l: "doubtful" },
+  { w: "ホエパウダー", g: "whey powder (rennet)", l: "doubtful" },
+  { w: "ホエイ", g: "whey (rennet)", l: "doubtful" },
+  { w: "乳清", g: "whey (rennet)", l: "doubtful" },
   // Emulsifier with a plant source stated is fine (after NFKC, （大豆由来） becomes (大豆由来)).
   { w: "乳化剤(大豆由来)", g: "emulsifier from soy", l: "info" },
   { w: "乳化剤(植物由来)", g: "emulsifier from plants", l: "info" },
