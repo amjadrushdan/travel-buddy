@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { Markdown } from "@/components/Markdown";
 import { Field, inputCls, SheetActions, SheetForm, useToast } from "@/components/ui";
@@ -21,7 +21,30 @@ export function GuideView({
   canEdit: boolean;
 }) {
   const [cat, setCat] = useState<"all" | Category>("all");
-  const [open, setOpen] = useState<Record<string, boolean>>(() => (guides[0] ? { [guides[0].id]: true } : {}));
+  // Notes start closed; this phone remembers which ones you left open.
+  const openKey = `tb-guide-open-${tripId}`;
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(openKey);
+      if (saved) setOpen(JSON.parse(saved));
+    } catch {
+      /* private mode */
+    }
+  }, [openKey]);
+  function toggle(id: string) {
+    setOpen((o) => {
+      const next = { ...o };
+      if (next[id]) delete next[id];
+      else next[id] = true;
+      try {
+        localStorage.setItem(openKey, JSON.stringify(next));
+      } catch {
+        /* private mode */
+      }
+      return next;
+    });
+  }
   const [sheet, setSheet] = useState<Sheet>(null);
   const [toast, setToast] = useToast();
 
@@ -86,7 +109,7 @@ export function GuideView({
               <button
                 type="button"
                 aria-expanded={isOpen}
-                onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))}
+                onClick={() => toggle(g.id)}
                 className="flex w-full items-center justify-between gap-3 p-4 text-left"
               >
                 <span className="flex min-w-0 items-center gap-3">
