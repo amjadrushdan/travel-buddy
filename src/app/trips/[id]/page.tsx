@@ -56,7 +56,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
     // Photo Home: full-bleed cover, white text over it, boarding pass pulled up onto the photo.
     return (
       <main className="flex flex-col gap-[22px] px-5">
-        <div className="relative -mx-5 h-[430px] overflow-hidden bg-hero">
+        <div className="relative -mx-5 h-[430px] overflow-hidden bg-hero lg:mx-0 lg:rounded-[20px]">
           {/* eslint-disable-next-line @next/next/no-img-element -- private, same-origin, already sized */}
           <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />
           <div className="absolute inset-0" style={{ background: SCRIM }} />

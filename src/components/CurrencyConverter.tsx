@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { EscClose } from "@/components/ui";
 
 type Rates = { base: "MYR"; updated: number; rates: Record<string, number> };
@@ -109,7 +110,9 @@ export function CurrencyConverter() {
         </span>
       </button>
 
-      {open && (
+      {/* Portal: the row sits inside Home's card stack, which would otherwise draw over the backdrop. */}
+      {open &&
+        createPortal(
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35 lg:items-center lg:p-6" onClick={() => setOpen(false)}>
           <div
             role="dialog"
@@ -173,8 +176,9 @@ export function CurrencyConverter() {
                 : "Open once while online to load rates; they're then saved for offline use."}
             </span>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 }
