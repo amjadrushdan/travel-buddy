@@ -751,7 +751,11 @@ function Scanner({ onCode, onClose, onType }: { onCode: (code: string) => void; 
             {hitCode ? <>Found <span className="font-mono">{hitCode}</span></> : "Point at the barcode"}
           </span>
         )}
-        <button type="button" onClick={onType} className="rounded-full bg-white px-5 py-2.5 text-[14px] font-semibold text-ink">
+        <button
+          type="button"
+          onClick={onType}
+          className={`rounded-full bg-white px-5 py-2.5 text-[14px] font-semibold text-ink transition-opacity ${hitCode ? "invisible opacity-0" : ""}`}
+        >
           Type barcode instead
         </button>
       </div>
