@@ -69,3 +69,8 @@ test("fermented seasoning and unnamed fats are doubtful", () => {
   assert.equal(checkIngredients("米発酵調味液、食塩").status, "check");
   assert.equal(checkIngredients("小麦粉、加工油脂").status, "check");
 });
+
+test("emulsifier with a plant source stated is not doubtful", () => {
+  assert.equal(checkIngredients("砂糖、乳化剤（大豆由来）、香料").status, "clear");
+  assert.equal(checkIngredients("砂糖、乳化剤、香料").status, "check");
+});

@@ -333,7 +333,7 @@ const HIT_CLS: Record<Level, string> = {
   haram: "bg-bad/15 text-bad font-semibold",
   alcohol: "bg-bad/15 text-bad font-semibold",
   doubtful: "bg-warn/35 text-warn-ink font-semibold",
-  info: "underline decoration-dotted underline-offset-2",
+  info: "bg-transparent text-inherit underline decoration-dotted underline-offset-2",
 };
 
 function containsTitle(hits: Hit[]) {

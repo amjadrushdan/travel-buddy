@@ -65,6 +65,10 @@ const TERMS: Term[] = [
   { w: "加工油脂", g: "processed fat (source not stated)", l: "doubtful" },
   { w: "食用油脂", g: "edible fat (source not stated)", l: "doubtful" },
   { w: "レンネット", g: "rennet (source not stated)", l: "doubtful" },
+  // Emulsifier with a plant source stated is fine (after NFKC, （大豆由来） becomes (大豆由来)).
+  { w: "乳化剤(大豆由来)", g: "emulsifier from soy", l: "info" },
+  { w: "乳化剤(植物由来)", g: "emulsifier from plants", l: "info" },
+  { w: "乳化剤(植物性)", g: "emulsifier from plants", l: "info" },
   { w: "乳化剤", g: "emulsifier (source not stated)", l: "doubtful" },
   { w: "ショートニング", g: "shortening (source not stated)", l: "doubtful" },
   { w: "マーガリン", g: "margarine (source not stated)", l: "doubtful" },
