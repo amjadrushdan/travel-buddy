@@ -49,7 +49,9 @@ export function TabBar({ tripId }: { tripId: string }) {
   return (
     // Sits flush on the screen's bottom edge. The padding grows with the phone's safe area
     // (iPhone home indicator, Android gesture bar), which needs viewport-fit=cover in layout.tsx.
-    <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full max-w-[480px] border-t border-line bg-surface px-2 pb-[max(18px,calc(env(safe-area-inset-bottom)+6px))]">
+    // Same colour as the page (and theme-color): Android paints its button bar in that colour,
+    // so the tab bar and the system bar read as one strip.
+    <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full max-w-[480px] border-t border-line bg-bg px-2 pb-[max(18px,calc(env(safe-area-inset-bottom)+6px))]">
       <ul className="grid grid-cols-5">
         {TABS.map((t) => {
           const href = t.key ? `${base}/${t.key}` : base;
