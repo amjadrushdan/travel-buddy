@@ -337,12 +337,18 @@ const HIT_CLS: Record<Level, string> = {
   info: "bg-transparent text-inherit",
 };
 
+/** "mirin (rice wine)" → "mirin, rice wine"; drop "(source not stated)", which the line already says. */
+const plain = (gloss: string) =>
+  gloss
+    .replace(/s*(source not stated)/, "")
+    .replace(/s*(([^)]*))/, ", $1");
+
 /** The reason under the verdict, e.g. "Contains 豚脂 (pork fat), みりん (mirin)". */
 function reason(v: Verdict, hits: Hit[], f: Pick<Found, "offline" | "name">): string {
   const words = (levels: Level[]) =>
     summarize(hits)
       .filter((h) => levels.includes(h.level))
-      .map((h) => `${h.word} (${h.gloss})`)
+      .map((h) => `${h.word} (${plain(h.gloss)})`)
       .join(", ");
   if (v === "contains") return `Contains ${words(["haram", "alcohol"])}`;
   if (v === "check") return `Source not stated: ${words(["doubtful"])}`;
