@@ -46,6 +46,19 @@ export async function offlineList(): Promise<ListInfo | null> {
   }
 }
 
+/** If a saved list is older than the one online, replace it (quietly, in the background). */
+export async function refreshOfflineList(): Promise<ListInfo | null> {
+  const saved = await offlineList();
+  if (!saved || !navigator.onLine) return saved;
+  try {
+    const res = await fetch("/food/jp/version.json", { cache: "no-store" });
+    const live = (await res.json()) as ListInfo;
+    return live.built !== saved.built ? await downloadOfflineList() : saved;
+  } catch {
+    return saved;
+  }
+}
+
 export async function downloadOfflineList(): Promise<ListInfo> {
   const cache = await caches.open(FOOD_CACHE);
   await cache.addAll([ALL, "/food/jp/version.json"]);

@@ -11,6 +11,7 @@ import {
   offlineList,
   pushRecent,
   readLabel,
+  refreshOfflineList,
   type ListInfo,
   type Recent,
 } from "@/lib/food";
@@ -85,7 +86,10 @@ export function FoodView({
 
   useEffect(() => {
     setRecent(loadRecent());
-    offlineList().then(setList);
+    offlineList().then((l) => {
+      setList(l);
+      if (l) refreshOfflineList().then(setList);
+    });
   }, []);
 
   // A saved check changes the open result (e.g. after "Save for the group").

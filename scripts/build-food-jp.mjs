@@ -85,5 +85,5 @@ for (const [code, rec] of Object.entries(all)) (shards[code.slice(0, 4)] ??= {})
 for (const [k, v] of Object.entries(shards)) fs.writeFileSync(path.join(outDir, `${k}.json`), JSON.stringify(v));
 fs.writeFileSync(path.join(outDir, "all.json"), JSON.stringify(all));
 const withIngr = Object.values(all).filter((r) => r.i).length;
-fs.writeFileSync(path.join(outDir, "version.json"), JSON.stringify({ built: new Date().toISOString().slice(0, 10), products: n, withIngredients: withIngr, source: "Open Food Facts (ODbL)" }));
+fs.writeFileSync(path.join(outDir, "version.json"), JSON.stringify({ built: new Date().toISOString(), products: n, withIngredients: withIngr, source: "Open Food Facts (ODbL)" }));
 console.log({ products: n, withIngredients: withIngr, shards: Object.keys(shards).length });
