@@ -101,9 +101,17 @@ const TERMS: Term[] = [
 // Longest first, so 豚肉 wins over 豚 and 醸造アルコール over アルコール.
 const ORDERED = [...TERMS].sort((a, b) => b.w.length - a.w.length);
 
-/** NFKC folds half-width ｶﾅ and full-width Ｌ－ to the forms in the list; lowercase for "l-システイン". */
+/**
+ * NFKC folds half-width ｶﾅ and full-width Ｌ－ to the forms in the list; lowercase for "l-システイン".
+ * Also drops web markup some Open Food Facts entries carry (<span class="allergen">) and spaces next
+ * to Japanese characters, which labels and OCR scatter around ("乳化剤(大豆 由来)").
+ */
 export function normalize(text: string): string {
-  return text.normalize("NFKC").toLowerCase();
+  return text
+    .replace(/<[^>]*>/g, "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[ \t　]+(?=[　-鿿()])|(?<=[　-鿿()])[ \t　]+/g, "");
 }
 
 export function checkIngredients(raw: string | null | undefined): Result {

@@ -74,3 +74,15 @@ test("emulsifier with a plant source stated is not doubtful", () => {
   assert.equal(checkIngredients("砂糖、乳化剤（大豆由来）、香料").status, "clear");
   assert.equal(checkIngredients("砂糖、乳化剤、香料").status, "check");
 });
+
+test("spaces inside Japanese text and web markup are ignored", () => {
+  assert.equal(checkIngredients("乳化剤(大豆 由来)、香料").status, "clear");
+  assert.equal(checkIngredients("ゼ ラ チ ン").status, "contains");
+  const r = checkIngredients('<span class="allergen">牛乳</span>、砂糖');
+  assert.equal(r.text, "牛乳、砂糖");
+  assert.equal(r.status, "clear");
+});
+
+test("plain milk is clear", () => {
+  assert.equal(checkIngredients("生乳100%").status, "clear");
+});
