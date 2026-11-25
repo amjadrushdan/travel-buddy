@@ -7,7 +7,7 @@ import type { TripDocument } from "@/lib/bookings";
 import { Field, inputCls, Masked, SheetActions, SheetForm, TzSelect, useDeviceTz, useOnline, useToast } from "@/components/ui";
 import { dateRange, dayParts } from "@/lib/format";
 import { dateAt, dayAt, nights, timeAt, tzLabel, utcToZonedInput } from "@/lib/time";
-import { PLATFORMS, stayDirectionsUrl, stayMapUrl, type Stay, type StayTodo } from "@/lib/travel";
+import { PLATFORMS, stayMapUrl, type Stay, type StayTodo } from "@/lib/travel";
 import { addStayTodo, deleteStay, deleteStayTodo, findLocation, saveStay, setStayTodoDone } from "../travel-actions";
 
 type Sheet = { mode: "new" } | { mode: "edit"; stay: Stay } | null;
@@ -478,12 +478,6 @@ const ICONS = {
       <circle cx="12" cy="9.5" r="2.6" fill="#fff" />
     </svg>
   ),
-  directions: (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="m12 2.5 9.5 9.5-9.5 9.5L2.5 12Z" />
-      <path d="M9 14v-2.5a1.5 1.5 0 0 1 1.5-1.5H15M13 8l2 2-2 2" />
-    </svg>
-  ),
   copy: (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <rect x="8.5" y="8.5" width="11" height="12" rx="2" />
@@ -523,10 +517,6 @@ function Actions({ s, onDriver, onToast }: { s: Stay; onDriver: () => void; onTo
       <a href={stayMapUrl(s)} target="_blank" rel="noopener noreferrer" className={btn}>
         {ICONS.pin}
         Maps
-      </a>
-      <a href={stayDirectionsUrl(s)} target="_blank" rel="noopener noreferrer" className={btn}>
-        {ICONS.directions}
-        Directions
       </a>
       <button type="button" className={btn} onClick={async () => onToast((await copyText(address)) ? "Address copied" : "Couldn't copy")}>
         {ICONS.copy}
