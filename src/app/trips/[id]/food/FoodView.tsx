@@ -32,6 +32,8 @@ type Found = {
   name: string | null;
   ingredients: string | null;
   halalLabel: boolean;
+  alcohol?: boolean; // listed as an alcoholic drink on Open Food Facts
+  about?: { en?: string; brand?: string; category?: string }; // what the item is
   source: Source;
   by?: string | null;
   at?: string;
@@ -40,9 +42,9 @@ type Found = {
 };
 type Verdict = "contains" | "check" | "clear" | "label" | "unknown";
 
-const verdictOf = (f: Pick<Found, "ingredients" | "halalLabel">): Verdict => {
+const verdictOf = (f: Pick<Found, "ingredients" | "halalLabel" | "alcohol">): Verdict => {
   const s = checkIngredients(f.ingredients).status;
-  if (s === "contains") return "contains";
+  if (s === "contains" || f.alcohol) return "contains";
   if (f.halalLabel) return "label";
   return s;
 };
@@ -90,7 +92,7 @@ export function FoodView({
   useEffect(() => {
     if (!found?.code) return;
     const g = checks.find((c) => c.barcode === found.code);
-    if (g && g.updated_at !== found.check?.updated_at) setFound(fromCheck(g, found.name));
+    if (g && g.updated_at !== found.check?.updated_at) setFound({ ...fromCheck(g, found.name), about: found.about, alcohol: found.alcohol });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checks]);
 
@@ -118,9 +120,10 @@ export function FoodView({
       offline = true;
     }
     const g = checks.find((c) => c.barcode === code);
+    const extra = { alcohol: !!jp?.a, about: jp ? { en: jp.e, brand: jp.b, category: jp.c } : undefined };
     const f: Found = g
-      ? fromCheck(g, jp?.n ?? null)
-      : { code, name: jp?.n ?? null, ingredients: jp?.i ?? null, halalLabel: !!jp?.h, source: jp?.i ? "off" : "none", offline };
+      ? { ...fromCheck(g, jp?.n ?? jp?.e ?? null), ...extra }
+      : { code, name: jp?.n ?? jp?.e ?? null, ingredients: jp?.i ?? null, halalLabel: !!jp?.h, source: jp?.i ? "off" : "none", offline, ...extra };
     setFound(f);
     setRecent(pushRecent({ code, name: f.name, status: verdictOf(f), at: Date.now() }));
   }
@@ -250,14 +253,16 @@ export function FoodView({
             setPendingPhoto(null);
             setLabel(null);
             setToast("Saved for the group");
-            const f: Found = { code: label.code, name, ingredients, halalLabel: false, source: "group", by: "you", at: new Date().toISOString() };
+            const same = found && found.code === label.code ? { about: found.about, alcohol: found.alcohol } : {};
+            const f: Found = { code: label.code, name, ingredients, halalLabel: false, source: "group", by: "you", at: new Date().toISOString(), ...same };
             setFound(f);
             setRecent(pushRecent({ code: label.code, name, status: verdictOf(f), at: Date.now() }));
           }}
           onUse={(name, ingredients) => {
             setPendingPhoto(null);
             setLabel(null);
-            setFound({ code: label.code, name, ingredients, halalLabel: false, source: "photo" });
+            const same = found && found.code === label.code ? { about: found.about, alcohol: found.alcohol } : {};
+            setFound({ code: label.code, name, ingredients, halalLabel: false, source: "photo", ...same });
           }}
         />
       )}
@@ -302,7 +307,7 @@ function OfflineRow({
         <span className="text-[12px] text-muted">
           {list
             ? `${list.products.toLocaleString("en-US")} products · ${shortDate(list.built)} · works offline`
-            : "61,000 products from Open Food Facts · 1.6 MB, for scanning offline"}
+            : "61,000 products from Open Food Facts · 2.1 MB, for scanning offline"}
         </span>
       </span>
       {!list && (
@@ -344,13 +349,16 @@ const plain = (gloss: string) =>
     .replace(/\s*\(([^)]*)\)/, ", $1");
 
 /** The reason under the verdict, e.g. "Contains 豚脂 (pork fat), みりん (mirin)". */
-function reason(v: Verdict, hits: Hit[], f: Pick<Found, "offline" | "name">): string {
+function reason(v: Verdict, hits: Hit[], f: Pick<Found, "offline" | "name" | "alcohol">): string {
   const words = (levels: Level[]) =>
     summarize(hits)
       .filter((h) => levels.includes(h.level))
       .map((h) => `${h.word} (${plain(h.gloss)})`)
       .join(", ");
-  if (v === "contains") return `Contains ${words(["haram", "alcohol"])}`;
+  if (v === "contains") {
+    const w = words(["haram", "alcohol"]);
+    return w ? `Contains ${w}` : "Alcoholic drink";
+  }
   if (v === "check") return `Source not stated: ${words(["doubtful"])}`;
   if (v === "clear") return "Not certified. Look for a halal logo to be sure.";
   if (v === "label") return "Listed as halal. Check the logo on the pack.";
@@ -396,10 +404,12 @@ function Source({ f }: { f: Found }) {
       Open Food Facts
     </a>
   );
+  // Ingredients source first; product details (name, brand, category) come from Open Food Facts.
+  const details = f.about ? <> · product details from {off}</> : null;
   if (f.source === "off") return <>Source: {off}</>;
-  if (f.source === "group") return <>Source: label photo by {f.by}{f.at ? `, ${shortDate(f.at)}` : ""}</>;
-  if (f.source === "photo") return <>Source: your photo (not saved)</>;
-  if (f.name) return <>Name from {off}</>;
+  if (f.source === "group") return <>Ingredients: label photo by {f.by}{f.at ? `, ${shortDate(f.at)}` : ""}{details}</>;
+  if (f.source === "photo") return <>Ingredients: your photo (not saved){details}</>;
+  if (f.name || f.about) return <>Product details from {off}</>;
   return null;
 }
 
@@ -426,6 +436,10 @@ function ResultSheet({
     <Sheet onClose={onClose} label="Food check result">
       <div className="flex flex-col gap-0.5">
         <span className="text-[19px] leading-snug font-bold [overflow-wrap:anywhere]">{f.name || (f.code ? "Unnamed product" : "Label")}</span>
+        {f.about?.en && f.about.en !== f.name && <span className="text-[14px] text-muted [overflow-wrap:anywhere]">{f.about.en}</span>}
+        {(f.about?.brand || f.about?.category) && (
+          <span className="text-[13px] text-muted">{[f.about.brand, f.about.category].filter(Boolean).join(" · ")}</span>
+        )}
         {f.code && <span className="font-mono text-[12px] text-muted">{f.code}</span>}
       </div>
 

@@ -6,7 +6,8 @@ export const SCAN_BASE = "/scan-v1";
 
 // ---------------------------------------------------------------- Japan list (Open Food Facts)
 
-export type JpProduct = { n?: string; i?: string; h?: 1 };
+/** n name, e English name, b brand, c category (English), i ingredients, h halal label, a alcoholic drink. */
+export type JpProduct = { n?: string; e?: string; b?: string; c?: string; i?: string; h?: 1; a?: 1 };
 const FOOD_CACHE = "tb-food"; // kept by sw.js across versions
 const ALL = "/food/jp/all.json";
 let all: Record<string, JpProduct> | null = null;
