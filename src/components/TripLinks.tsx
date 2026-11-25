@@ -12,7 +12,7 @@ export function TripLinks({ tripId, bookings, documents }: { tripId: string; boo
 
   return (
     <div className="flex flex-col divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
-      <Link href={`/trips/${tripId}/bookings`} className="flex items-center gap-3.5 px-4 py-3.5">
+      <Link href={`/trips/${tripId}/bookings`} className="flex items-center gap-3.5 px-4 py-3.5 transition-colors hover:bg-ink/[.03]">
         <span className="flex size-9 flex-none items-center justify-center rounded-sm bg-bg text-lg" aria-hidden>
           🎟️
         </span>

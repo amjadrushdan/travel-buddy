@@ -21,7 +21,7 @@ export default async function MembersPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <main className="flex flex-col gap-5 px-5 pt-[calc(16px+env(safe-area-inset-top))]">
+    <main className="flex flex-col gap-5 px-5 pt-[calc(16px+env(safe-area-inset-top))] lg:pt-0">
       <Link href={`/trips/${trip.id}`} className="self-start py-1 text-[15px] font-semibold lg:hidden">
         ‹ {trip.name}
       </Link>

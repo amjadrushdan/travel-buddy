@@ -65,6 +65,7 @@ export function StayView({
   const [showPast, setShowPast] = useState(false);
   const [now, setNow] = useState(renderedAt);
   const [toast, setToast] = useToast();
+  const [picked, setPicked] = useState<string | null>(null); // desktop: the stay shown on the right
 
   useEffect(() => {
     setNow(Date.now());
@@ -108,8 +109,10 @@ export function StayView({
     featuredKicker = { text: `Next stay · check-in ${dayAt(featured.check_in, featured.tz)}`, when: inTime(Date.parse(featured.check_in) - now) };
   }
 
+  const selected = stays.find((s) => s.id === picked) ?? featured ?? stays[0] ?? null;
+
   return (
-    <main className="flex flex-col gap-4 px-5 pt-[calc(26px+env(safe-area-inset-top))]">
+    <main data-two-col className="flex flex-col gap-4 px-5 pt-[calc(26px+env(safe-area-inset-top))] lg:pt-0">
       <div className="flex items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <span className="label">
@@ -138,6 +141,49 @@ export function StayView({
         <>
           <NightStrip tripStart={tripStart} tripEnd={tripEnd} stays={stays} colorOf={colorOf} />
 
+          {/* Desktop: every stay listed on the left, the chosen one open on the right. */}
+          {selected && (
+            <div className="hidden lg:mt-2 lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-8">
+              <nav aria-label="Stays" className="sticky top-6 flex flex-col gap-0.5">
+                {stays.map((s) => {
+                  const st = statusOf(s, now);
+                  const ci = dayParts(dateAt(s.check_in, s.tz));
+                  const co = dayParts(dateAt(s.check_out, s.tz));
+                  const n = nights(s.check_in, s.check_out, s.tz);
+                  const active = s.id === selected.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-current={active ? "true" : undefined}
+                      onClick={() => setPicked(s.id)}
+                      className={`flex items-center gap-3 rounded-sm px-3 py-2.5 text-left transition-colors ${active ? "bg-ink/[.07]" : "hover:bg-ink/[.04]"} ${st === "past" && !active ? "opacity-55" : ""}`}
+                    >
+                      <span className="h-9 w-1 flex-none rounded-full" style={{ background: colorOf.get(s.id) }} aria-hidden />
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className={`truncate text-[14px] ${active ? "font-semibold" : "font-medium"}`}>{s.name}</span>
+                        <span className="text-[12px] text-muted">
+                          {ci.d} {ci.mon === co.mon ? "" : `${ci.mon} `}– {co.d} {co.mon} · {n} {n === 1 ? "night" : "nights"}
+                        </span>
+                      </span>
+                      {(st === "now" || s === next) && (
+                        <span className="flex-none rounded-full bg-ink px-2 py-0.5 text-[11px] font-semibold text-white">{st === "now" ? "Now" : "Next"}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+              <div className="min-w-0">
+                {card(selected, {
+                  kicker: selected === featured ? featuredKicker : undefined,
+                  defaultOpen: true,
+                  faded: statusOf(selected, now) === "past",
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-4 lg:hidden">
           {featured && card(featured, { kicker: featuredKicker, defaultOpen: true })}
 
           {upcoming.length > 0 && (
@@ -155,6 +201,7 @@ export function StayView({
               {showPast && past.map((s) => card(s, { faded: true }))}
             </div>
           )}
+          </div>
         </>
       )}
 

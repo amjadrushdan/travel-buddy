@@ -97,7 +97,7 @@ export function CurrencyConverter() {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left">
+      <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left transition-colors hover:bg-ink/[.03]">
         <span className="flex size-9 flex-none items-center justify-center rounded-sm bg-bg text-lg" aria-hidden>
           💱
         </span>

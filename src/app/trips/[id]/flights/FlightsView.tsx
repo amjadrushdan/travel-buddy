@@ -43,7 +43,7 @@ export function FlightsView({
   const [toast, setToast] = useToast();
 
   return (
-    <main className="flex flex-col gap-[18px] px-5 pt-[calc(26px+env(safe-area-inset-top))]">
+    <main data-two-col className="flex flex-col gap-[18px] px-5 pt-[calc(26px+env(safe-area-inset-top))] lg:pt-0">
       <div className="flex items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <span className="label">{tripName} · local times</span>
@@ -71,6 +71,8 @@ export function FlightsView({
         </div>
       )}
 
+      {/* Desktop: flights side by side, two per row. */}
+      <div className="flex flex-col gap-[18px] lg:grid lg:grid-cols-2 lg:items-start lg:gap-5">
       {flights.map((f) => (
         <FlightCard
           key={f.id}
@@ -85,6 +87,7 @@ export function FlightsView({
           onEdit={canEdit ? () => setSheet({ mode: "edit", flight: f }) : undefined}
         />
       ))}
+      </div>
 
       {sheet && (
         <FlightSheet

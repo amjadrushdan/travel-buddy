@@ -103,7 +103,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, canEd
 
   if (days.length === 0) {
     return (
-      <main className="flex flex-col gap-4 px-5 pt-[calc(26px+env(safe-area-inset-top))]">
+      <main className="flex flex-col gap-4 px-5 pt-[calc(26px+env(safe-area-inset-top))] lg:pt-0">
         <Header tripName={tripName} subtitle="No dates yet" />
         <div className="rounded-card border-[1.5px] border-dashed border-line p-5 text-center text-sm text-muted">
           Nothing planned yet.
@@ -121,12 +121,13 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, canEd
   }
 
   return (
-    <main className="flex flex-col gap-4 pt-[calc(26px+env(safe-area-inset-top))]">
-      <div className="px-5">
+    // Desktop: day list on the left, the chosen day on the right. Phone: day chips above the day.
+    <main data-two-col className="flex flex-col gap-4 pt-[calc(26px+env(safe-area-inset-top))] lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-x-4 lg:gap-y-6 lg:pt-0">
+      <div className="px-5 lg:col-span-2">
         <Header tripName={tripName} subtitle={`${days.length} ${days.length === 1 ? "day" : "days"}`} />
       </div>
 
-      <div ref={chipsRef} className="no-scrollbar flex gap-1.5 overflow-x-auto px-5 pb-0.5" role="tablist" aria-label="Days">
+      <div ref={chipsRef} className="no-scrollbar flex gap-1.5 overflow-x-auto px-5 pb-0.5 lg:hidden" role="tablist" aria-label="Days">
         {days.map((d) => {
           const p = dayParts(d);
           const active = d === day;
@@ -151,6 +152,38 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, canEd
         })}
       </div>
 
+      <nav aria-label="Days" className="sticky top-6 hidden max-h-[calc(100dvh-48px)] flex-col gap-0.5 overflow-y-auto px-5 lg:flex">
+        {days.map((d, i) => {
+          const active = d === day;
+          const count = items.filter((it) => it.day === d).length;
+          const w = weather[d];
+          return (
+            <button
+              key={d}
+              type="button"
+              aria-current={active ? "date" : undefined}
+              onClick={() => pickDay(d)}
+              className={`flex items-center gap-3 rounded-sm px-3 py-2.5 text-left transition-colors ${active ? "bg-ink/[.07]" : "hover:bg-ink/[.04]"}`}
+            >
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className={`text-[12px] ${now?.date === d ? "font-semibold text-now-ink" : "text-muted"}`}>
+                  Day {i + 1} · {now?.date === d ? "Today" : formatDay(d)}
+                </span>
+                <span className={`truncate text-[14px] ${active ? "font-semibold" : "font-medium"} ${titles[d] ? "" : "text-muted"}`}>
+                  {titles[d] ?? (count ? `${count} ${count === 1 ? "stop" : "stops"}` : "Nothing planned")}
+                </span>
+              </span>
+              {w && (
+                <span className="flex-none text-[12px] text-muted tabular-nums" title={weatherLabel(w.code).label}>
+                  <span aria-hidden>{weatherLabel(w.code).icon}</span> {w.tMax}°
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="flex min-w-0 flex-col gap-4 lg:col-start-2 lg:row-start-2 lg:max-w-[680px]">
       {day && (
         <div className="flex items-end justify-between gap-2.5 px-5">
           <div className="flex min-w-0 flex-col gap-1">
@@ -293,6 +326,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, canEd
             })}
           </ol>
         )}
+      </div>
       </div>
 
       {sheet && (

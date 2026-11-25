@@ -21,6 +21,12 @@ import { daysUntil, formatDateRange } from "@/lib/format";
 // Design 2a cover: darker at the top (status bar, back link) and bottom (trip name).
 const SCRIM = "linear-gradient(180deg, rgba(0,0,0,.45) 0%, transparent 26%, transparent 48%, rgba(0,0,0,.62) 100%)";
 
+// Phone: one column (flight, today, links). Desktop: today on the left; flight and links in a sticky right column.
+// The right column is display:contents on phones, so its children keep their phone order via order-*.
+const GRID = "flex flex-col gap-[22px] px-5 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-x-8 lg:gap-y-7";
+const SIDE = "contents lg:sticky lg:top-6 lg:col-start-2 lg:row-start-2 lg:flex lg:flex-col lg:gap-[22px]";
+const MAIN = "order-2 min-w-0 lg:col-start-1 lg:row-start-2";
+
 export default async function TripHomePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [{ trip, members, me }, items, flights, titles, stays, bookings, docs] = await Promise.all([
@@ -51,16 +57,20 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
       nowMs={now}
     />
   );
+  const today = (
+    <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} titles={titles} stays={stays} bookings={bookings} />
+  );
+  const links = <TripLinks tripId={trip.id} bookings={bookings.length} documents={docs.length} />;
 
   if (cover) {
-    // Photo Home: full-bleed cover, white text over it, boarding pass pulled up onto the photo.
+    // Photo Home: full-bleed cover, white text over it, boarding pass pulled up onto the photo (phone only).
     return (
-      <main className="flex flex-col gap-[22px] px-5">
-        <div className="relative -mx-5 h-[430px] overflow-hidden bg-hero lg:mx-0 lg:rounded-[20px]">
+      <main data-two-col className={GRID}>
+        <div className="relative -mx-5 h-[430px] overflow-hidden bg-hero lg:col-span-2 lg:mx-0 lg:h-[340px] lg:rounded-[20px]">
           {/* eslint-disable-next-line @next/next/no-img-element -- private, same-origin, already sized */}
           <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />
           <div className="absolute inset-0" style={{ background: SCRIM }} />
-          <div className="relative flex h-full flex-col px-5 pt-[calc(16px+env(safe-area-inset-top))] text-white">
+          <div className="relative flex h-full flex-col px-5 pt-[calc(16px+env(safe-area-inset-top))] text-white lg:px-7 lg:pt-5">
             <div className="flex items-center justify-between gap-3">
               <Link href="/" className="py-1 text-[15px] font-semibold lg:invisible [text-shadow:0_1px_3px_rgba(0,0,0,.4)]">
                 ‹ Trips
@@ -72,7 +82,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
                 </div>
               )}
             </div>
-            <div className={`mt-auto flex items-end justify-between gap-3 ${next ? "mb-[236px]" : "mb-6"}`}>
+            <div className={`mt-auto flex items-end justify-between gap-3 ${next ? "mb-[236px] lg:mb-7" : "mb-6 lg:mb-7"}`}>
               <div className="flex min-w-0 flex-col gap-1.5 [text-shadow:0_1px_6px_rgba(0,0,0,.35)]">
                 <div className="flex flex-wrap items-center gap-2">
                   <TripKicker
@@ -83,7 +93,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
                   />
                   <DaysChip start={trip.start_date} serverDays={days} />
                 </div>
-                <h1 className="text-[40px] leading-[1.02] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{trip.name}</h1>
+                <h1 className="text-[40px] leading-[1.02] font-bold tracking-[-0.02em] [overflow-wrap:anywhere] lg:text-[48px]">{trip.name}</h1>
                 {subtitle && <span className="text-sm opacity-90">{subtitle}</span>}
               </div>
               <Link href={`/trips/${trip.id}/members`} className="flex flex-none flex-col items-end gap-1.5 py-1">
@@ -94,11 +104,13 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        <div className={next ? "relative z-[1] -mt-[242px] drop-shadow-[0_14px_22px_rgba(0,0,0,.3)]" : ""}>{flightCard}</div>
-
-        <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} titles={titles} stays={stays} bookings={bookings} />
-
-        <TripLinks tripId={trip.id} bookings={bookings.length} documents={docs.length} />
+        <div className={SIDE}>
+          <div className={`order-1 ${next ? "relative z-[1] -mt-[242px] drop-shadow-[0_14px_22px_rgba(0,0,0,.3)] lg:mt-0 lg:drop-shadow-none" : ""}`}>
+            {flightCard}
+          </div>
+          <div className="order-3">{links}</div>
+        </div>
+        <div className={MAIN}>{today}</div>
 
         <Suspense>
           <JoinedToast tripName={trip.name} />
@@ -108,35 +120,41 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
   }
 
   return (
-    <main className="flex flex-col gap-[22px] px-5 pt-[calc(16px+env(safe-area-inset-top))]">
-      <div className="flex items-center justify-between gap-3">
-        <Link href="/" className="py-1 text-[15px] font-semibold lg:invisible">
-          ‹ Trips
-        </Link>
-        {canEdit && <EditTripButton trip={trip} />}
-      </div>
-
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <TripKicker start={trip.start_date} end={trip.end_date} serverDays={days} className="label" />
-          <h1 className="text-[32px] leading-[1.05] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{trip.name}</h1>
-          <span className="text-sm text-muted">{subtitle}</span>
+    <main data-two-col className={`${GRID} pt-[calc(16px+env(safe-area-inset-top))] lg:pt-0`}>
+      <div className="flex flex-col gap-[22px] lg:col-span-2">
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/" className="py-1 text-[15px] font-semibold lg:invisible">
+            ‹ Trips
+          </Link>
+          {canEdit && <EditTripButton trip={trip} />}
         </div>
-        <Link href={`/trips/${trip.id}/members`} className="flex flex-none flex-col items-end gap-1.5 py-1">
-          <AvatarStack names={names} />
-          <span className="text-xs text-muted">{memberLabel}</span>
-        </Link>
+
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <TripKicker start={trip.start_date} end={trip.end_date} serverDays={days} className="label" />
+            <h1 className="text-[32px] leading-[1.05] font-bold tracking-[-0.02em] [overflow-wrap:anywhere]">{trip.name}</h1>
+            <span className="text-sm text-muted">{subtitle}</span>
+          </div>
+          <Link href={`/trips/${trip.id}/members`} className="flex flex-none flex-col items-end gap-1.5 py-1">
+            <AvatarStack names={names} />
+            <span className="text-xs text-muted">{memberLabel}</span>
+          </Link>
+        </div>
+
+        <BigCountdown start={trip.start_date} serverDays={days} />
       </div>
 
-      <BigCountdown start={trip.start_date} serverDays={days} />
+      <div className={SIDE}>
+        <div className="order-1">{flightCard}</div>
+        <div className="order-3">{links}</div>
+      </div>
+      <div className={MAIN}>{today}</div>
 
-      {flightCard}
-
-      <TodayCard tripId={trip.id} days={tripDays(trip.start_date, trip.end_date, items)} items={items} titles={titles} stays={stays} bookings={bookings} />
-
-        <TripLinks tripId={trip.id} bookings={bookings.length} documents={docs.length} />
-
-      {canEdit && <CoverPicker tripId={trip.id} hasCover={false} onPhoto={false} />}
+      {canEdit && (
+        <div className="order-4 lg:col-start-1">
+          <CoverPicker tripId={trip.id} hasCover={false} onPhoto={false} />
+        </div>
+      )}
 
       <Suspense>
         <JoinedToast tripName={trip.name} />

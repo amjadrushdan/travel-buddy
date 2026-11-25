@@ -53,7 +53,7 @@ export function GuideView({
   const shown = guides.filter((g) => cat === "all" || g.category === cat);
 
   return (
-    <main className="flex flex-col gap-4 pt-[calc(26px+env(safe-area-inset-top))]">
+    <main data-two-col className="flex flex-col gap-4 pt-[calc(26px+env(safe-area-inset-top))] lg:pt-0">
       <div className="flex items-end justify-between gap-3 px-5">
         <div className="flex flex-col gap-1">
           <span className="label">{tripName} · shared notes</span>
@@ -90,9 +90,10 @@ export function GuideView({
         </div>
       )}
 
-      <div className="flex flex-col gap-2.5 px-5">
+      {/* Desktop: notes in two columns. */}
+      <div className="flex flex-col gap-2.5 px-5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
         {guides.length === 0 && (
-          <div className="flex flex-col gap-3 rounded-card border-[1.5px] border-dashed border-line p-5 text-center">
+          <div className="flex flex-col gap-3 rounded-card lg:col-span-2 border-[1.5px] border-dashed border-line p-5 text-center">
             <span className="text-sm text-muted">No guide notes yet. Food spots, prayer places, transport tips, phrases…</span>
             {canEdit && (
               <button type="button" onClick={() => setSheet({ mode: "new" })} className="rounded-sm bg-ink p-[13px] text-[15px] font-semibold text-white">
@@ -110,7 +111,7 @@ export function GuideView({
                 type="button"
                 aria-expanded={isOpen}
                 onClick={() => toggle(g.id)}
-                className="flex w-full items-center justify-between gap-3 p-4 text-left"
+                className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-ink/[.02]"
               >
                 <span className="flex min-w-0 items-center gap-3">
                   <span className="flex size-10 flex-none items-center justify-center rounded-sm bg-bg text-ink">

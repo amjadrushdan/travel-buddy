@@ -26,7 +26,8 @@ export default async function TripLayout({
       <meta name="tb-rendered-at" content={new Date().toISOString()} />
       <Sidebar tripId={id} name={trip.name} subtitle={subtitle} cover={coverSrc(trip.id, trip.cover_url)} />
       <div className="pb-[calc(96px+env(safe-area-inset-bottom))] lg:pt-6 lg:pb-16">
-        <div className="lg:mx-auto lg:max-w-[640px]">{children}</div>
+        {/* Reading column by default; pages that use two columns on desktop mark themselves data-two-col. */}
+        <div className="lg:mx-auto lg:max-w-[640px] lg:has-[[data-two-col]]:max-w-[1080px]">{children}</div>
       </div>
       <TabBar tripId={id} />
       {/* Save the trip's other tabs (and the trip list) so the whole trip works offline. */}

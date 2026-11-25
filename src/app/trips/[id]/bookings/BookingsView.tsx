@@ -44,7 +44,7 @@ export function BookingsView({
   const tripDocs = docs.filter((d) => !d.flight_id && !d.stay_id && !d.booking_id);
 
   return (
-    <main className="flex flex-col gap-5 px-5 pt-[calc(16px+env(safe-area-inset-top))]">
+    <main data-two-col className="flex flex-col gap-5 px-5 pt-[calc(16px+env(safe-area-inset-top))] lg:mx-auto lg:max-w-[880px] lg:pt-0">
       <Link href={`/trips/${tripId}`} className="self-start py-1 text-[15px] font-semibold lg:hidden">
         ‹ {tripName}
       </Link>
@@ -72,8 +72,9 @@ export function BookingsView({
       )}
 
       {groups.map((g) => (
-        <section key={g.day} className="flex flex-col gap-2.5">
-          <span className="label">{g.label}</span>
+        <section key={g.day} className="flex flex-col gap-2.5 lg:grid lg:grid-cols-[160px_minmax(0,1fr)] lg:items-start lg:gap-x-6">
+          <span className="label lg:sticky lg:top-6 lg:pt-4">{g.label}</span>
+          <div className="flex min-w-0 flex-col gap-2.5">
           {g.items.map((b) => (
             <BookingCard
               key={b.id}
@@ -84,11 +85,12 @@ export function BookingsView({
               onEdit={() => setSheet({ mode: "edit", booking: b })}
             />
           ))}
+          </div>
         </section>
       ))}
 
-      <section className="flex flex-col gap-2.5">
-        <span className="label">Trip documents</span>
+      <section className="flex flex-col gap-2.5 lg:grid lg:grid-cols-[160px_minmax(0,1fr)] lg:items-start lg:gap-x-6">
+        <span className="label lg:pt-4">Trip documents</span>
         <div className="rounded-card border border-line bg-surface p-4">
           <DocumentList
             tripId={tripId}
@@ -121,7 +123,7 @@ function BookingCard({ b, tripId, docs, canEdit, onEdit }: { b: Booking; tripId:
 
   return (
     <article className="overflow-hidden rounded-card border border-line bg-surface">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-start gap-3.5 p-4 text-left">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-start gap-3.5 p-4 text-left transition-colors hover:bg-ink/[.02]">
         <span className="flex size-10 flex-none items-center justify-center rounded-sm bg-bg text-xl" aria-hidden>
           {kind.icon}
         </span>
