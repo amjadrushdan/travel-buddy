@@ -67,3 +67,17 @@
     display: none;
   }
 }
+
+/* Sheets: backdrop fades in, panel slides up (phone) or settles in (desktop). */
+@keyframes tb-fade { from { opacity: 0; } }
+@keyframes tb-rise { from { transform: translateY(100%); } }
+@keyframes tb-settle { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+/* Scanner: the box confirms a read before the result opens. */
+@keyframes tb-pop { 50% { transform: scale(1.04); } }
+.tb-backdrop { animation: tb-fade .2s ease-out; }
+.tb-sheet { animation: tb-rise .32s cubic-bezier(.2, .8, .2, 1); }
+@media (min-width: 1024px) { .tb-sheet { animation: tb-settle .22s ease-out; } }
+.tb-pop { animation: tb-pop .3s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .tb-backdrop, .tb-sheet, .tb-pop { animation: none; }
+}

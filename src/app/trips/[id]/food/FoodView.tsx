@@ -387,12 +387,12 @@ function Highlighted({ text, hits }: { text: string; hits: Hit[] }) {
 
 function Sheet({ onClose, children, label }: { onClose: () => void; children: React.ReactNode; label: string }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35 lg:items-center lg:p-6" onClick={onClose}>
+    <div className="tb-backdrop fixed inset-0 z-40 flex items-end justify-center bg-black/35 lg:items-center lg:p-6" onClick={onClose}>
       <div
         role="dialog"
         aria-label={label}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92dvh] w-full max-w-[480px] flex-col gap-4 overflow-y-auto rounded-t-[22px] bg-bg px-5 pt-5 pb-[max(24px,env(safe-area-inset-bottom))] lg:max-w-[560px] lg:rounded-[22px] lg:shadow-[0_24px_60px_rgba(0,0,0,.25)]"
+        className="tb-sheet flex max-h-[92dvh] w-full max-w-[480px] flex-col gap-4 overflow-y-auto rounded-t-[22px] bg-bg px-5 pt-5 pb-[max(24px,env(safe-area-inset-bottom))] lg:max-w-[560px] lg:rounded-[22px] lg:shadow-[0_24px_60px_rgba(0,0,0,.25)]"
       >
         <div className="mx-auto h-1 w-10 flex-none rounded-full bg-line lg:hidden" />
         <EscClose onClose={onClose} />
@@ -651,6 +651,7 @@ function Scanner({ onCode, onClose, onType }: { onCode: (code: string) => void; 
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hitCode, setHitCode] = useState<string | null>(null);
   // Keep the camera running across parent re-renders: read the latest callback from a ref.
   const onCodeRef = useRef(onCode);
   useEffect(() => {
@@ -697,8 +698,14 @@ function Scanner({ onCode, onClose, onType }: { onCode: (code: string) => void; 
             if (hit) {
               navigator.vibrate?.(60);
               stopped = true;
-              stream?.getTracks().forEach((t) => t.stop());
-              onCodeRef.current(hit);
+              // Hold the last frame with a green box and the number for a moment, then open the result.
+              v.pause();
+              setHitCode(hit);
+              const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+              timer = setTimeout(() => {
+                stream?.getTracks().forEach((t) => t.stop());
+                onCodeRef.current(hit);
+              }, reduce ? 150 : 550);
               return;
             }
           }
@@ -728,11 +735,22 @@ function Scanner({ onCode, onClose, onType }: { onCode: (code: string) => void; 
         </button>
       </div>
       <div className="relative flex flex-1 items-center justify-center px-8">
-        {!error && <div ref={box} className="aspect-[2.2/1] w-full max-w-[360px] rounded-[14px] border-2 border-white/90 shadow-[0_0_0_100vmax_rgba(0,0,0,.35)]" />}
+        {!error && (
+          <div
+            ref={box}
+            className={`aspect-[2.2/1] w-full max-w-[360px] rounded-[14px] border-2 shadow-[0_0_0_100vmax_rgba(0,0,0,.35)] transition-colors duration-150 ${
+              hitCode ? "tb-pop border-good bg-good/15 shadow-[0_0_0_100vmax_rgba(0,0,0,.55)]" : "border-white/90"
+            }`}
+          />
+        )}
         {error && <p className="max-w-[320px] rounded-card bg-black/70 p-4 text-center text-[15px]">{error}</p>}
       </div>
       <div className="relative flex flex-col items-center gap-3 px-5 pb-[calc(24px+env(safe-area-inset-bottom))]">
-        {!error && <span className="text-[14px] [text-shadow:0_1px_3px_rgba(0,0,0,.5)]">Point at the barcode</span>}
+        {!error && (
+          <span className="text-[14px] [text-shadow:0_1px_3px_rgba(0,0,0,.5)]" aria-live="polite">
+            {hitCode ? <>Found <span className="font-mono">{hitCode}</span></> : "Point at the barcode"}
+          </span>
+        )}
         <button type="button" onClick={onType} className="rounded-full bg-white px-5 py-2.5 text-[14px] font-semibold text-ink">
           Type barcode instead
         </button>
