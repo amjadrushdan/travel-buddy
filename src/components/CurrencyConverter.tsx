@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EscClose } from "@/components/ui";
 
 type Rates = { base: "MYR"; updated: number; rates: Record<string, number> };
 
@@ -109,14 +110,15 @@ export function CurrencyConverter() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35 lg:items-center lg:p-6" onClick={() => setOpen(false)}>
           <div
             role="dialog"
             aria-label="Currency converter"
             onClick={(e) => e.stopPropagation()}
-            className="flex w-full max-w-[480px] flex-col gap-4 rounded-t-[22px] bg-bg px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
+            className="flex w-full max-w-[480px] flex-col gap-4 rounded-t-[22px] bg-bg lg:max-h-[88dvh] lg:max-w-[520px] lg:overflow-y-auto lg:rounded-[22px] lg:pb-6 lg:shadow-[0_24px_60px_rgba(0,0,0,.25)] px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
           >
-            <div className="mx-auto h-1 w-10 rounded-full bg-line" />
+            <div className="mx-auto h-1 w-10 lg:hidden rounded-full bg-line" />
+            <EscClose onClose={() => setOpen(false)} />
             <span className="text-xl font-bold">Currency</span>
 
             <div className="flex gap-1.5" role="tablist" aria-label="Currency">

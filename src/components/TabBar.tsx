@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const TABS = [
+export const TABS = [
   { key: "", label: "Home", icon: <path d="M4 10.5 12 4l8 6.5V20h-5v-6H9v6H4z" /> },
   {
     key: "flights",
@@ -51,7 +51,7 @@ export function TabBar({ tripId }: { tripId: string }) {
     // (iPhone home indicator, Android gesture bar), which needs viewport-fit=cover in layout.tsx.
     // Same colour as the page (and theme-color): Android paints its button bar in that colour,
     // so the tab bar and the system bar read as one strip.
-    <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full max-w-[480px] border-t border-line bg-bg px-2 pb-[max(18px,calc(env(safe-area-inset-bottom)+6px))]">
+    <nav className="fixed inset-x-0 bottom-0 z-10 mx-auto lg:hidden w-full max-w-[480px] border-t border-line bg-bg px-2 pb-[max(18px,calc(env(safe-area-inset-bottom)+6px))]">
       <ul className="grid grid-cols-5">
         {TABS.map((t) => {
           const href = t.key ? `${base}/${t.key}` : base;

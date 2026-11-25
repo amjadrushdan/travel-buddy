@@ -23,7 +23,7 @@ export function JoinedToast({ tripName }: { tripName: string }) {
   return (
     <div
       role="status"
-      className="fixed inset-x-5 bottom-24 z-30 mx-auto max-w-[440px] rounded-sm bg-ink px-3.5 py-3 text-center text-sm font-medium text-bg"
+      className="fixed inset-x-5 bottom-24 z-30 mx-auto max-w-[440px] lg:bottom-8 lg:left-[276px] rounded-sm bg-ink px-3.5 py-3 text-center text-sm font-medium text-bg"
     >
       {text}
     </div>

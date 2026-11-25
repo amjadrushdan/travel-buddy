@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { DocumentList } from "@/components/DocumentList";
 import { LinkedText } from "@/components/LinkedText";
 import type { TripDocument } from "@/lib/bookings";
-import { Field, inputCls, Masked, SheetActions, SheetForm, TzSelect, useDeviceTz, useOnline, useToast } from "@/components/ui";
+import { EscClose, Field, inputCls, Masked, SheetActions, SheetForm, TzSelect, useDeviceTz, useOnline, useToast } from "@/components/ui";
 import { dateRange, dayParts } from "@/lib/format";
 import { dateAt, dayAt, nights, timeAt, tzLabel, utcToZonedInput } from "@/lib/time";
 import { PLATFORMS, stayMapUrl, type Stay, type StayTodo } from "@/lib/travel";
@@ -541,6 +541,7 @@ function DriverView({ s, onClose, onToast }: { s: Stay; onClose: () => void; onT
   const big = s.address_local || s.address || s.name;
   return (
     <div role="dialog" aria-label="Address for the driver" className="fixed inset-0 z-50 flex flex-col bg-white px-6 pt-[calc(24px+env(safe-area-inset-top))] pb-[max(24px,env(safe-area-inset-bottom))]">
+      <EscClose onClose={onClose} />
       <button type="button" onClick={onClose} className="self-end rounded-full bg-bg px-3.5 py-1.5 text-sm font-semibold">
         Close
       </button>

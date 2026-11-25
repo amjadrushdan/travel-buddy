@@ -62,7 +62,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
           <div className="absolute inset-0" style={{ background: SCRIM }} />
           <div className="relative flex h-full flex-col px-5 pt-[calc(16px+env(safe-area-inset-top))] text-white">
             <div className="flex items-center justify-between gap-3">
-              <Link href="/" className="py-1 text-[15px] font-semibold [text-shadow:0_1px_3px_rgba(0,0,0,.4)]">
+              <Link href="/" className="py-1 text-[15px] font-semibold lg:invisible [text-shadow:0_1px_3px_rgba(0,0,0,.4)]">
                 ‹ Trips
               </Link>
               {canEdit && (
@@ -110,7 +110,7 @@ export default async function TripHomePage({ params }: { params: Promise<{ id: s
   return (
     <main className="flex flex-col gap-[22px] px-5 pt-[calc(16px+env(safe-area-inset-top))]">
       <div className="flex items-center justify-between gap-3">
-        <Link href="/" className="py-1 text-[15px] font-semibold">
+        <Link href="/" className="py-1 text-[15px] font-semibold lg:invisible">
           ‹ Trips
         </Link>
         {canEdit && <EditTripButton trip={trip} />}

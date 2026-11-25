@@ -30,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        <div className="mx-auto min-h-dvh w-full max-w-[480px]">
+        <div className="mx-auto min-h-dvh w-full max-w-[480px] lg:has-[[data-wide]]:max-w-none">
           <OfflineBanner />
           {children}
         </div>

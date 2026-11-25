@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { useOnline } from "@/components/ui";
+import { EscClose, useOnline } from "@/components/ui";
 import {
   COVER_BUCKET,
   COVER_DAILY_LIMIT,
@@ -183,14 +183,15 @@ export function CoverPicker({ tripId, hasCover, onPhoto }: { tripId: string; has
       <input ref={input} type="file" accept="image/*" className="hidden" onChange={onFile} />
 
       {open && (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35" onClick={busy ? undefined : close}>
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/35 lg:items-center lg:p-6" onClick={busy ? undefined : close}>
           <div
             role="dialog"
             aria-label="Cover photo"
             onClick={(e) => e.stopPropagation()}
-            className="flex w-full max-w-[480px] flex-col gap-3.5 rounded-t-[22px] bg-bg px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))] text-ink"
+            className="flex w-full max-w-[480px] flex-col gap-3.5 rounded-t-[22px] bg-bg lg:max-h-[88dvh] lg:max-w-[520px] lg:overflow-y-auto lg:rounded-[22px] lg:pb-6 lg:shadow-[0_24px_60px_rgba(0,0,0,.25)] px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))] text-ink"
           >
-            <div className="mx-auto h-1 w-10 rounded-full bg-line" />
+            <div className="mx-auto h-1 w-10 lg:hidden rounded-full bg-line" />
+            <EscClose onClose={() => !busy && close()} />
             <span className="text-xl font-bold">Cover photo</span>
 
             {preview ? (

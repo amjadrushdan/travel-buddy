@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { roleLabel } from "@/lib/format";
+import { EscClose } from "@/components/ui";
 import { createInvite, revokeInvite } from "./actions";
 
 export type Invite = {
@@ -146,14 +147,15 @@ export function InvitePanel({ tripId, invites }: { tripId: string; invites: Invi
       {!online && <span className="text-center text-xs text-muted">Invites need a connection.</span>}
 
       {sheet && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/35" onClick={() => setSheet(false)}>
+        <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/35 lg:items-center lg:p-6" onClick={() => setSheet(false)}>
           <div
             role="dialog"
             aria-label="New invite link"
-            className="flex w-full max-w-[480px] flex-col gap-4 rounded-t-[22px] bg-bg px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
+            className="flex w-full max-w-[480px] flex-col gap-4 rounded-t-[22px] bg-bg lg:max-h-[88dvh] lg:max-w-[520px] lg:overflow-y-auto lg:rounded-[22px] lg:pb-6 lg:shadow-[0_24px_60px_rgba(0,0,0,.25)] px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto h-1 w-10 rounded-full bg-line" />
+            <div className="mx-auto h-1 w-10 lg:hidden rounded-full bg-line" />
+            <EscClose onClose={() => setSheet(false)} />
             <span className="text-xl font-bold">New invite link</span>
             <Segment label="Role" options={ROLES} value={role} onChange={setRole} />
             <Segment label="Expires" options={EXPIRES} value={expires} onChange={setExpires} />
@@ -172,7 +174,7 @@ export function InvitePanel({ tripId, invites }: { tripId: string; invites: Invi
       )}
 
       {toast && (
-        <div className="fixed inset-x-5 bottom-24 z-30 mx-auto max-w-[440px] rounded-sm bg-ink px-3.5 py-3 text-center text-sm font-medium text-bg">
+        <div className="fixed inset-x-5 bottom-24 z-30 mx-auto max-w-[440px] lg:bottom-8 lg:left-[276px] rounded-sm bg-ink px-3.5 py-3 text-center text-sm font-medium text-bg">
           {toast}
         </div>
       )}

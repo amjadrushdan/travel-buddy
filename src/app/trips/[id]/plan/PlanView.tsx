@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { dayParts, formatDay, localTime, localToday, shortTime } from "@/lib/format";
 import { LinkedText } from "@/components/LinkedText";
+import { EscClose } from "@/components/ui";
 import { mapLink, nowIndex, type ItineraryItem } from "@/lib/itinerary";
 import { weatherLabel, type DayWeather } from "@/lib/weather";
 import { deleteItem, reorderDay, saveItem, setDayTitle } from "./actions";
@@ -350,7 +351,7 @@ function DayTitleSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/35" onClick={onClose}>
+    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/35 lg:items-center lg:p-6" onClick={onClose}>
       <form
         role="dialog"
         aria-label="Name this day"
@@ -359,9 +360,10 @@ function DayTitleSheet({
           e.preventDefault();
           save(value);
         }}
-        className="flex w-full max-w-[480px] flex-col gap-3.5 rounded-t-[22px] bg-bg px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
+        className="flex w-full max-w-[480px] flex-col gap-3.5 rounded-t-[22px] bg-bg lg:max-h-[88dvh] lg:max-w-[520px] lg:overflow-y-auto lg:rounded-[22px] lg:pb-6 lg:shadow-[0_24px_60px_rgba(0,0,0,.25)] px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
       >
-        <div className="mx-auto h-1 w-10 rounded-full bg-line" />
+        <div className="mx-auto h-1 w-10 lg:hidden rounded-full bg-line" />
+        <EscClose onClose={onClose} />
         <span className="text-xl font-bold">Name this day</span>
         <span className="-mt-2 text-sm text-muted">{formatDay(day)}</span>
         <input
@@ -405,7 +407,7 @@ function Toast({ text }: { text: string }) {
   return (
     <div
       role="status"
-      className="fixed inset-x-5 bottom-24 z-30 mx-auto max-w-[440px] rounded-sm bg-ink px-3.5 py-3 text-center text-sm font-medium text-bg"
+      className="fixed inset-x-5 bottom-24 z-30 mx-auto max-w-[440px] lg:bottom-8 lg:left-[276px] rounded-sm bg-ink px-3.5 py-3 text-center text-sm font-medium text-bg"
     >
       {text}
     </div>
@@ -459,7 +461,7 @@ function ItemSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/35" onClick={onClose}>
+    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/35 lg:items-center lg:p-6" onClick={onClose}>
       <form
         role="dialog"
         aria-label={item ? "Edit plan item" : "Add to plan"}
@@ -469,9 +471,10 @@ function ItemSheet({
           submit(new FormData(e.currentTarget));
         }}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92dvh] w-full max-w-[480px] flex-col gap-3.5 overflow-y-auto rounded-t-[22px] bg-bg px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
+        className="flex max-h-[92dvh] w-full max-w-[480px] flex-col gap-3.5 overflow-y-auto rounded-t-[22px] bg-bg lg:max-h-[88dvh] lg:max-w-[520px] lg:overflow-y-auto lg:rounded-[22px] lg:pb-6 lg:shadow-[0_24px_60px_rgba(0,0,0,.25)] px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))]"
       >
-        <div className="mx-auto h-1 w-10 rounded-full bg-line" />
+        <div className="mx-auto h-1 w-10 lg:hidden rounded-full bg-line" />
+        <EscClose onClose={onClose} />
         <span className="text-xl font-bold">{item ? "Edit" : "Add to plan"}</span>
 
         <label className="flex flex-col gap-1.5">

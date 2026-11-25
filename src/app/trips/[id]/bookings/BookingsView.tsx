@@ -45,7 +45,7 @@ export function BookingsView({
 
   return (
     <main className="flex flex-col gap-5 px-5 pt-[calc(16px+env(safe-area-inset-top))]">
-      <Link href={`/trips/${tripId}`} className="self-start py-1 text-[15px] font-semibold">
+      <Link href={`/trips/${tripId}`} className="self-start py-1 text-[15px] font-semibold lg:hidden">
         ‹ {tripName}
       </Link>
       <div className="flex items-end justify-between gap-3">
