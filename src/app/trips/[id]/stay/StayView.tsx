@@ -12,6 +12,7 @@ import { addStayTodo, deleteStay, deleteStayTodo, findLocation, saveStay, setSta
 
 type Sheet = { mode: "new" } | { mode: "edit"; stay: Stay } | null;
 type Status = "past" | "now" | "upcoming";
+type Kicker = { text: string; when: string };
 
 const OFFLINE = { error: "Couldn't reach the server. Are you offline?" };
 // One colour per stay, in trip order (night strip and card accents).
@@ -80,7 +81,7 @@ export function StayView({
   const past = stays.filter((s) => s !== featured && statusOf(s, now) === "past");
   const todosOf = (id: string) => todos.filter((t) => t.stay_id === id);
 
-  const card = (s: Stay, opts: { kicker?: string; defaultOpen?: boolean; faded?: boolean } = {}) => (
+  const card = (s: Stay, opts: { kicker?: Kicker; defaultOpen?: boolean; faded?: boolean } = {}) => (
     <StayCard
       key={s.id}
       s={s}
@@ -98,11 +99,13 @@ export function StayView({
     />
   );
 
-  let featuredKicker: string | undefined;
+  // One-line banner: "Next stay · check-in Sat 12 Dec" on the left, "in 17 days" on the right.
+  // (The exact time is in the check-in box right below.)
+  let featuredKicker: Kicker | undefined;
   if (featured && current) {
-    featuredKicker = `Staying now · check-out ${dayAt(current.check_out, current.tz)} ${timeAt(current.check_out, current.tz)} · ${inTime(Date.parse(current.check_out) - now)}`;
+    featuredKicker = { text: `Staying now · check-out ${dayAt(current.check_out, current.tz)}`, when: inTime(Date.parse(current.check_out) - now) };
   } else if (featured) {
-    featuredKicker = `Next stay · check-in ${dayAt(featured.check_in, featured.tz)} ${timeAt(featured.check_in, featured.tz)} · ${inTime(Date.parse(featured.check_in) - now)}`;
+    featuredKicker = { text: `Next stay · check-in ${dayAt(featured.check_in, featured.tz)}`, when: inTime(Date.parse(featured.check_in) - now) };
   }
 
   return (
@@ -252,7 +255,7 @@ function StayCard({
   todos: StayTodo[];
   docs: TripDocument[];
   canEdit: boolean;
-  kicker?: string;
+  kicker?: Kicker;
   defaultOpen?: boolean;
   faded?: boolean;
   onEdit: () => void;
@@ -272,7 +275,12 @@ function StayCard({
       className={`flex min-w-0 flex-col overflow-hidden rounded-card border bg-surface ${kicker ? "border-ink" : "border-line"} ${faded ? "opacity-60" : ""}`}
       style={{ borderLeft: `4px solid ${color}` }}
     >
-      {kicker && <div className="bg-ink px-4 py-2 font-mono text-[11px] tracking-[.06em] text-white uppercase">{kicker}</div>}
+      {kicker && (
+        <div className="flex items-center justify-between gap-3 bg-ink px-4 py-2 font-mono text-[11px] tracking-[.06em] whitespace-nowrap text-white uppercase">
+          <span className="min-w-0 truncate">{kicker.text}</span>
+          <span className="flex-none opacity-75">{kicker.when}</span>
+        </div>
+      )}
 
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-start justify-between gap-3 p-4 text-left">
         <span className="flex min-w-0 flex-col gap-1">
