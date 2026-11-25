@@ -649,6 +649,7 @@ function TypeBarcode({ onCode, onClose }: { onCode: (code: string) => void; onCl
 
 function Scanner({ onCode, onClose, onType }: { onCode: (code: string) => void; onClose: () => void; onType: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   // Keep the camera running across parent re-renders: read the latest callback from a ref.
   const onCodeRef = useRef(onCode);
@@ -683,11 +684,15 @@ function Scanner({ onCode, onClose, onType }: { onCode: (code: string) => void; 
       const detector = await getDetector().catch(() => null);
       if (!detector) return setError("Couldn't start the barcode reader. Type the barcode instead.");
 
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+
       const tick = async () => {
         if (stopped) return;
         try {
           if (v.readyState >= 2) {
-            const codes = await detector.detect(v);
+            const frame = cropToBox(v, box.current, canvas, ctx);
+            const codes = frame ? await detector.detect(frame) : [];
             const hit = codes.map((c) => c.rawValue).find(validBarcode);
             if (hit) {
               navigator.vibrate?.(60);
@@ -723,7 +728,7 @@ function Scanner({ onCode, onClose, onType }: { onCode: (code: string) => void; 
         </button>
       </div>
       <div className="relative flex flex-1 items-center justify-center px-8">
-        {!error && <div className="aspect-[2.2/1] w-full max-w-[360px] rounded-[14px] border-2 border-white/90 shadow-[0_0_0_100vmax_rgba(0,0,0,.35)]" />}
+        {!error && <div ref={box} className="aspect-[2.2/1] w-full max-w-[360px] rounded-[14px] border-2 border-white/90 shadow-[0_0_0_100vmax_rgba(0,0,0,.35)]" />}
         {error && <p className="max-w-[320px] rounded-card bg-black/70 p-4 text-center text-[15px]">{error}</p>}
       </div>
       <div className="relative flex flex-col items-center gap-3 px-5 pb-[calc(24px+env(safe-area-inset-bottom))]">
@@ -734,6 +739,29 @@ function Scanner({ onCode, onClose, onType }: { onCode: (code: string) => void; 
       </div>
     </div>
   );
+}
+
+/**
+ * Copies only the part of the camera frame inside the on-screen box, so barcodes outside it are
+ * ignored. The video fills the screen with object-cover, so it is scaled up and its edges cropped:
+ * undo that to turn the box's screen position into video pixels.
+ */
+function cropToBox(v: HTMLVideoElement, el: HTMLElement | null, c: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
+  if (!el || !v.videoWidth) return null;
+  const vr = v.getBoundingClientRect();
+  const br = el.getBoundingClientRect();
+  const k = Math.max(vr.width / v.videoWidth, vr.height / v.videoHeight); // screen px per video px
+  const offX = (v.videoWidth * k - vr.width) / 2;
+  const offY = (v.videoHeight * k - vr.height) / 2;
+  const sx = Math.max(0, (br.left - vr.left + offX) / k);
+  const sy = Math.max(0, (br.top - vr.top + offY) / k);
+  const sw = Math.min(v.videoWidth - sx, br.width / k);
+  const sh = Math.min(v.videoHeight - sy, br.height / k);
+  if (sw < 20 || sh < 10) return null;
+  c.width = Math.round(sw);
+  c.height = Math.round(sh);
+  ctx.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c;
 }
 
 function BarcodeIcon() {
