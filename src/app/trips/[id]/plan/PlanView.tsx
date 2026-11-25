@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { dayParts, formatDay, localTime, localToday, shortTime } from "@/lib/format";
 import { LinkedText } from "@/components/LinkedText";
 import { EscClose } from "@/components/ui";
 import { mapLink, nowIndex, type ItineraryItem } from "@/lib/itinerary";
 import { weatherLabel, type DayWeather } from "@/lib/weather";
-import { deleteItem, reorderDay, saveItem, setDayTitle } from "./actions";
+import type { RouteLeg } from "@/lib/data/itinerary";
+import { deleteItem, reorderDay, saveItem, setDayTitle, workOutRoutes } from "./actions";
+import { LegRow } from "./LegRow";
 
 const input = "w-full rounded-sm border border-line bg-surface p-3 text-base outline-none focus:border-ink";
 
@@ -17,13 +19,16 @@ type Props = {
   items: ItineraryItem[];
   titles: Record<string, string>;
   weather: Record<string, DayWeather>;
+  legs: RouteLeg[];
+  /** Editor, and the server has route keys. */
+  canRoute: boolean;
   canEdit: boolean;
   requestedDay: string | null;
 };
 
 type Sheet = { mode: "new" } | { mode: "edit"; item: ItineraryItem } | null;
 
-export function PlanView({ tripId, tripName, days, items, titles, weather, canEdit, requestedDay }: Props) {
+export function PlanView({ tripId, tripName, days, items, titles, weather, legs, canRoute, canEdit, requestedDay }: Props) {
   const [titleSheet, setTitleSheet] = useState(false);
   const [day, setDay] = useState<string | null>(requestedDay ?? days[0] ?? null);
   const [now, setNow] = useState<{ date: string; time: string } | null>(null);
@@ -32,6 +37,8 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, canEd
   const [sheet, setSheet] = useState<Sheet>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [routing, startRouting] = useTransition();
+  const legFor = useMemo(() => new Map(legs.map((l) => [l.to_item, l])), [legs]);
   const chipsRef = useRef<HTMLDivElement>(null);
 
   // Device clock, read after mount so server and browser render the same HTML first.
@@ -79,6 +86,20 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, canEd
   const isToday = !!now && now.date === day;
   const current = isToday ? nowIndex(dayItems, now!.time) : -1;
   const dayNo = day ? days.indexOf(day) + 1 : 0;
+
+  function routes() {
+    if (!day) return;
+    const d = day;
+    startRouting(async () => {
+      const res = await workOutRoutes(tripId, d).catch(() => ({ error: "Couldn't work out routes. Are you offline?" }) as const);
+      if ("error" in res && res.error) return setToast(res.error);
+      if ("upToDate" in res && res.upToDate) return setToast("Routes are up to date");
+      const n = "done" in res ? (res.done ?? 0) : 0;
+      if ("capped" in res && res.capped) return setToast(n ? `Added ${n} routes. Daily limit reached, try tomorrow.` : "Daily route limit reached. Try tomorrow.");
+      if ("more" in res && res.more) return setToast(`Added ${n} routes. Tap Routes again for the rest.`);
+      setToast(n === 1 ? "Added 1 route" : `Added ${n} routes`);
+    });
+  }
 
   function pickDay(d: string) {
     setDay(d);
@@ -207,6 +228,17 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, canEd
           </div>
           {canEdit && (
             <div className="flex flex-none gap-1.5">
+              {canRoute && !reorder && dayItems.length > 1 && (
+                <button
+                  type="button"
+                  onClick={routes}
+                  disabled={routing}
+                  aria-busy={routing}
+                  className="rounded-sm border border-line bg-surface px-3 py-[7px] text-[13px] font-semibold disabled:text-muted"
+                >
+                  {routing ? "Working…" : "Routes"}
+                </button>
+              )}
               {dayItems.length > 1 && (
                 <button
                   type="button"
@@ -245,8 +277,14 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, canEd
               const past = isToday && current !== -1 && k < current;
               const link = mapLink(it);
               const time = shortTime(it.start_time);
+              const prev = dayItems[k - 1];
+              const leg = legFor.get(it.id);
+              const showLeg =
+                !reorder && prev && leg && leg.from_item === prev.id && leg.from_place === prev.place && leg.to_place === it.place;
               return (
-                <li key={it.id} className={`grid grid-cols-[48px_14px_1fr_auto] items-stretch gap-2.5 ${past ? "opacity-45" : ""}`}>
+                <Fragment key={it.id}>
+                {showLeg && <LegRow leg={leg} dim={past} />}
+                <li className={`grid grid-cols-[48px_14px_1fr_auto] items-stretch gap-2.5 ${past ? "opacity-45" : ""}`}>
                   <span
                     className={`pt-[13px] font-mono text-sm tabular-nums ${isNow ? "font-semibold text-now-ink" : ""} ${time ? "" : "text-muted"}`}
                   >
@@ -322,6 +360,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, canEd
                     <span />
                   )}
                 </li>
+                </Fragment>
               );
             })}
           </ol>

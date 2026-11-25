@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { ItineraryItem } from "@/lib/itinerary";
+import type { Leg } from "@/lib/routes/types";
 
 export const ITEM_COLUMNS = "id, day, start_time, title, place, map_url, notes, sort_order";
 
@@ -21,6 +22,20 @@ export async function listItinerary(tripId: string): Promise<ItineraryItem[]> {
     .order("sort_order")
     .order("start_time", { nullsFirst: false })
     .returns<ItineraryItem[]>();
+  if (error) throw error;
+  return data ?? [];
+}
+
+export type RouteLeg = Leg & { to_item: string; from_item: string; from_place: string; to_place: string };
+
+/** Saved ways of getting between stops (lib/routes), keyed by the stop they lead to. */
+export async function listRouteLegs(tripId: string): Promise<RouteLeg[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("route_legs")
+    .select("to_item, from_item, from_place, to_place, mode, minutes, leave_at, fare, currency, steps, provider")
+    .eq("trip_id", tripId)
+    .returns<RouteLeg[]>();
   if (error) throw error;
   return data ?? [];
 }

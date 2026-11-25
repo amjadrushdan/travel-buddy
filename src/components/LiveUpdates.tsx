@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-const TRIP_TABLES = ["itinerary_items", "plan_days", "flights", "stays", "stay_todos", "bookings", "documents", "guides", "trip_members", "food_checks"] as const;
+const TRIP_TABLES = ["itinerary_items", "plan_days", "flights", "stays", "stay_todos", "bookings", "documents", "guides", "trip_members", "food_checks", "route_legs"] as const;
 
 /**
  * Listens for changes to this trip and re-renders the page when someone else edits it.

@@ -1,5 +1,6 @@
 import { getTrip } from "@/lib/data/trips";
-import { listDayTitles, listItinerary } from "@/lib/data/itinerary";
+import { listDayTitles, listItinerary, listRouteLegs } from "@/lib/data/itinerary";
+import { routesEnabled } from "@/lib/routes";
 import { listStays } from "@/lib/data/travel";
 import { forecastForDays } from "@/lib/data/weather";
 import { tripDays } from "@/lib/itinerary";
@@ -14,7 +15,13 @@ export default async function PlanPage({
 }) {
   const { id } = await params;
   const { day } = await searchParams;
-  const [{ trip, me }, items, titles, stays] = await Promise.all([getTrip(id), listItinerary(id), listDayTitles(id), listStays(id)]);
+  const [{ trip, me }, items, titles, stays, legs] = await Promise.all([
+    getTrip(id),
+    listItinerary(id),
+    listDayTitles(id),
+    listStays(id),
+    listRouteLegs(id),
+  ]);
   const days = tripDays(trip.start_date, trip.end_date, items);
   const weather = await forecastForDays(days, stays);
 
@@ -25,6 +32,8 @@ export default async function PlanPage({
       days={days}
       items={items}
       titles={titles}
+      legs={legs}
+      canRoute={me.role !== "viewer" && routesEnabled()}
       weather={weather}
       canEdit={me.role !== "viewer"}
       requestedDay={day && days.includes(day) ? day : null}

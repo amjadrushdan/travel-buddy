@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getTrip } from "@/lib/data/trips";
+import { listStays } from "@/lib/data/travel";
+import { stayForDay } from "@/lib/stay-location";
+import { CapReached, routesEnabled, workOutLeg, type Claim } from "@/lib/routes";
 
 export type ActionResult = { error?: string };
 
@@ -161,4 +165,100 @@ export async function setDayTitle(tripId: string, day: string, title: string): P
   if (error) return { error: error.code === "42501" ? "Only owners and editors can name days." : error.message };
   revalidate(tripId);
   return {};
+}
+
+// ---------------------------------------------------------------- getting between stops
+
+const ROUTES_PER_RUN = 15;
+const samePlace = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+export type RoutesResult = { error?: string; done?: number; upToDate?: boolean; more?: boolean; capped?: boolean };
+
+/**
+ * Work out walking or train routes between this day's stops that don't have one yet, and save
+ * them for the group. Owners and editors only (RLS on route_legs).
+ */
+export async function workOutRoutes(tripId: string, day: string): Promise<RoutesResult> {
+  if (!DATE_RE.test(day)) return { error: "Bad day." };
+  if (!routesEnabled() || !process.env.FLIGHT_STATUS_SECRET) return { error: "Routes aren't set up on the server yet." };
+
+  const { trip, me } = await getTrip(tripId);
+  if (me.role === "viewer") return { error: "Only owners and editors can work out routes." };
+  const supabase = await createClient();
+
+  const [{ data: items, error: itemsError }, { data: legs }, stays] = await Promise.all([
+    supabase
+      .from("itinerary_items")
+      .select("id, start_time, place")
+      .eq("trip_id", tripId)
+      .eq("day", day)
+      .order("sort_order")
+      .order("start_time", { nullsFirst: false }),
+    supabase.from("route_legs").select("to_item, from_item, from_place, to_place").eq("trip_id", tripId),
+    listStays(tripId),
+  ]);
+  if (itemsError) return { error: itemsError.message };
+  const list = items ?? [];
+  const saved = new Map((legs ?? []).map((l) => [l.to_item as string, l]));
+  const tz = stayForDay(stays, day)?.tz ?? stays[0]?.tz ?? "UTC";
+  const where = trip.destination?.trim();
+  const address = (p: string) => (where && !p.toLowerCase().includes(where.toLowerCase()) ? `${p}, ${where}` : p);
+
+  // Consecutive stops with different places need a leg.
+  const wanted = list.slice(1).flatMap((b, i) => {
+    const a = list[i];
+    return a.place && b.place && !samePlace(a.place, b.place) ? [{ a, b }] : [];
+  });
+
+  // Drop legs that no longer join two stops of this day.
+  const keep = new Set(wanted.map((w) => w.b.id));
+  const stale = list.filter((it) => saved.has(it.id) && !keep.has(it.id)).map((it) => it.id);
+  if (stale.length) await supabase.from("route_legs").delete().in("to_item", stale);
+
+  const todo = wanted.filter(({ a, b }) => {
+    const l = saved.get(b.id);
+    return !l || l.from_item !== a.id || l.from_place !== a.place || l.to_place !== b.place;
+  });
+  if (!todo.length) {
+    if (stale.length) revalidate(tripId);
+    return { upToDate: true, done: 0 };
+  }
+
+  const secret = process.env.FLIGHT_STATUS_SECRET!;
+  const claim: Claim = async (api, cap) => {
+    const { data, error } = await supabase.rpc("route_claim", {
+      p_secret: secret,
+      p_api: api,
+      p_daily_cap: cap.daily,
+      p_monthly_cap: cap.monthly,
+    });
+    if (error) throw error;
+    return data === true;
+  };
+
+  let done = 0;
+  let capped = false;
+  for (const { a, b } of todo.slice(0, ROUTES_PER_RUN)) {
+    const arrive = b.start_time?.slice(0, 5);
+    const leave = a.start_time?.slice(0, 5);
+    const when = { local: `${day}T${arrive ?? leave ?? "10:00"}`, tz, arriveBy: !!arrive };
+    let leg;
+    try {
+      leg = await workOutLeg(address(a.place!), address(b.place!), when, claim);
+    } catch (e) {
+      if (e instanceof CapReached) {
+        capped = true;
+        break;
+      }
+      continue; // provider hiccup: try this leg again next time
+    }
+    const { error } = await supabase.from("route_legs").upsert(
+      { to_item: b.id, trip_id: tripId, from_item: a.id, from_place: a.place!, to_place: b.place!, ...leg },
+      { onConflict: "to_item" },
+    );
+    if (error) return { error: error.message, done };
+    done++;
+  }
+  revalidate(tripId);
+  return { done, capped, more: !capped && todo.length > ROUTES_PER_RUN };
 }
