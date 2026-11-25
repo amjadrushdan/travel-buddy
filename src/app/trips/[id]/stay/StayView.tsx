@@ -103,7 +103,7 @@ export function StayView({
   // (The exact time is in the check-in box right below.)
   let featuredKicker: Kicker | undefined;
   if (featured && current) {
-    featuredKicker = { text: `Staying now · check-out ${dayAt(current.check_out, current.tz)}`, when: inTime(Date.parse(current.check_out) - now) };
+    featuredKicker = { text: `Here now · check-out ${dayAt(current.check_out, current.tz)}`, when: inTime(Date.parse(current.check_out) - now) };
   } else if (featured) {
     featuredKicker = { text: `Next stay · check-in ${dayAt(featured.check_in, featured.tz)}`, when: inTime(Date.parse(featured.check_in) - now) };
   }
@@ -276,7 +276,7 @@ function StayCard({
       style={{ borderLeft: `4px solid ${color}` }}
     >
       {kicker && (
-        <div className="flex items-center justify-between gap-3 bg-ink px-4 py-2 font-mono text-[11px] tracking-[.06em] whitespace-nowrap text-white uppercase">
+        <div className="flex items-center justify-between gap-2 bg-ink px-4 py-2 font-mono text-[11px] whitespace-nowrap text-white uppercase">
           <span className="min-w-0 truncate">{kicker.text}</span>
           <span className="flex-none opacity-75">{kicker.when}</span>
         </div>
