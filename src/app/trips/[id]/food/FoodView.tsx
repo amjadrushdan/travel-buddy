@@ -758,8 +758,11 @@ function cropToBox(v: HTMLVideoElement, el: HTMLElement | null, c: HTMLCanvasEle
   const sw = Math.min(v.videoWidth - sx, br.width / k);
   const sh = Math.min(v.videoHeight - sy, br.height / k);
   if (sw < 20 || sh < 10) return null;
-  c.width = Math.round(sw);
-  c.height = Math.round(sh);
+  // A small crop has thin bars the reader misses; enlarge it to at least 800 px wide.
+  const up = Math.max(1, 800 / sw);
+  c.width = Math.round(sw * up);
+  c.height = Math.round(sh * up);
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
   return c;
 }
