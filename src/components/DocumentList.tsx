@@ -88,7 +88,7 @@ export function DocumentList({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold text-muted">{title}</span>
+      {title && <span className="text-[11px] font-semibold text-muted">{title}</span>}
       {docs.length > 0 && (
         <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-sm border border-line">
           {docs.map((d) => {

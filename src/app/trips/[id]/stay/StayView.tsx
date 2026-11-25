@@ -316,54 +316,139 @@ function StayCard({
 
           <Actions s={s} onDriver={onDriver} onToast={onToast} />
 
-          {(platform || s.host || s.booking_ref || s.door_code || s.wifi) && (
-            <dl className="flex flex-col gap-2 text-[13px]">
-              {platform && <Row label="Booked on">{platform.label}</Row>}
-              {s.host && <Row label="Host">{s.host}</Row>}
-              {s.booking_ref && (
-                <Row label="Booking ref">
-                  <Masked value={s.booking_ref} />
-                </Row>
-              )}
-              {s.door_code && (
-                <Row label="Door code">
-                  <Masked value={s.door_code} />
-                </Row>
-              )}
-              {s.wifi && (
-                <Row label="Wi-Fi">
-                  <Masked value={s.wifi} />
-                </Row>
-              )}
-            </dl>
-          )}
+          {/* Secondary details fold into one-line rows; tap to open. */}
+          <div className="flex flex-col divide-y divide-line border-y border-line">
+            {(s.checkin_info || s.door_code || s.wifi) && (
+              <Section
+                icon={SECTION_ICONS.key}
+                title="Check-in"
+                summary={s.checkin_info ?? [s.door_code && "Door code", s.wifi && "Wi-Fi"].filter(Boolean).join(" · ")}
+              >
+                {s.checkin_info && <LinkedText text={s.checkin_info} className="text-[13px] leading-normal text-ink" />}
+                {(s.door_code || s.wifi) && (
+                  <dl className="flex flex-col gap-2 text-[13px]">
+                    {s.door_code && (
+                      <Row label="Door code">
+                        <Masked value={s.door_code} />
+                      </Row>
+                    )}
+                    {s.wifi && (
+                      <Row label="Wi-Fi">
+                        <Masked value={s.wifi} />
+                      </Row>
+                    )}
+                  </dl>
+                )}
+              </Section>
+            )}
 
-          {s.checkin_info && (
-            <div className="flex flex-col gap-1 rounded-sm bg-bg px-3 py-2.5">
-              <span className="text-[11px] font-semibold text-muted">Check-in info</span>
-              <LinkedText text={s.checkin_info} className="text-[13px] leading-normal text-ink" />
-            </div>
-          )}
+            {(platform || s.host || s.booking_ref || docs.length > 0 || canEdit) && (
+              <Section
+                icon={SECTION_ICONS.receipt}
+                title="Booking"
+                summary={[platform?.label, s.host, docs.length > 0 && `${docs.length} ${docs.length === 1 ? "file" : "files"}`].filter(Boolean).join(" · ") || "Add confirmation"}
+              >
+                {(platform || s.host || s.booking_ref) && (
+                  <dl className="flex flex-col gap-2 text-[13px]">
+                    {platform && <Row label="Booked on">{platform.label}</Row>}
+                    {s.host && <Row label="Host">{s.host}</Row>}
+                    {s.booking_ref && (
+                      <Row label="Booking ref">
+                        <Masked value={s.booking_ref} />
+                      </Row>
+                    )}
+                  </dl>
+                )}
+                <DocumentList tripId={tripId} parent={{ stay_id: s.id }} docs={docs} canEdit={canEdit} title="" />
+              </Section>
+            )}
 
-          <Todos tripId={tripId} stayId={s.id} todos={todos} canEdit={canEdit} onToast={onToast} />
+            {(todos.length > 0 || canEdit) && (
+              <Section
+                icon={SECTION_ICONS.check}
+                title="To-do"
+                summary={todos.length === 0 ? "Shared with the group" : openTodos > 0 ? `${openTodos} open · shared with the group` : "All done"}
+                attention={openTodos > 0}
+              >
+                <Todos tripId={tripId} stayId={s.id} todos={todos} canEdit={canEdit} onToast={onToast} />
+              </Section>
+            )}
 
-          <DocumentList tripId={tripId} parent={{ stay_id: s.id }} docs={docs} canEdit={canEdit} title="Booking confirmation & files" />
-
-          {s.notes && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-semibold text-muted">Notes</span>
-              <LinkedText text={s.notes} className="text-[13px] leading-normal text-muted" />
-            </div>
-          )}
+            {s.notes && (
+              <Section icon={SECTION_ICONS.note} title="Notes" summary={s.notes}>
+                <LinkedText text={s.notes} className="text-[13px] leading-normal text-ink" />
+              </Section>
+            )}
+          </div>
 
           {canEdit && (
-            <button type="button" onClick={onEdit} className="py-1 text-[13px] font-semibold">
+            <button type="button" onClick={onEdit} className="self-center px-3 py-1 text-[13px] font-semibold text-muted">
               Edit stay
             </button>
           )}
         </div>
       )}
     </article>
+  );
+}
+
+const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+const SECTION_ICONS = {
+  key: (
+    <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} aria-hidden>
+      <circle cx="8" cy="15" r="4" />
+      <path d="m10.8 12.2 8.7-8.7M16.5 6.5l2.5 2.5M14 9l2 2" />
+    </svg>
+  ),
+  receipt: (
+    <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} aria-hidden>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2Z" />
+      <path d="M9 8h6M9 12h6" />
+    </svg>
+  ),
+  check: (
+    <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} aria-hidden>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
+      <path d="m8 12 3 3 5-6" />
+    </svg>
+  ),
+  note: (
+    <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} aria-hidden>
+      <path d="M5 4h14v16H5z" />
+      <path d="M9 9h6M9 13h6M9 17h3" />
+    </svg>
+  ),
+};
+
+/** One quiet row: icon, title, one-line summary. Tap to show the details underneath. */
+function Section({
+  icon,
+  title,
+  summary,
+  attention = false,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  summary: string;
+  attention?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-3 py-3 text-left">
+        <span className="flex-none text-muted">{icon}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-sm font-semibold">{title}</span>
+          {!open && <span className={`truncate text-[13px] ${attention ? "font-medium text-warn-ink" : "text-muted"}`}>{summary}</span>}
+        </span>
+        <svg width="16" height="16" viewBox="0 0 24 24" {...stroke} className={`flex-none text-muted transition-transform ${open ? "rotate-180" : ""}`} aria-hidden>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open && <div className="flex flex-col gap-3 pb-3.5 pl-[30px]">{children}</div>}
+    </div>
   );
 }
 
@@ -536,7 +621,6 @@ function Todos({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold text-muted">To-do · shared with the group</span>
       {todos.length > 0 && (
         <ul className="flex flex-col">
           {todos.map((t) => {
