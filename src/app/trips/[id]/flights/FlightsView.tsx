@@ -184,13 +184,22 @@ function FlightCard({
       </div>
       {(docs.length > 0 || canEdit) && (
         <div className="border-t border-line px-4 py-3">
-          <DocumentList tripId={tripId} parent={{ flight_id: f.id }} docs={docs} canEdit={canEdit} title="Boarding pass & e-ticket" />
+          <DocumentList
+            tripId={tripId}
+            parent={{ flight_id: f.id }}
+            docs={docs}
+            canEdit={canEdit}
+            title="Boarding pass & e-ticket"
+            addLabel="+ Add file"
+            beside={
+              onEdit && (
+                <button type="button" onClick={onEdit} className="flex-1 rounded-sm border border-line bg-bg py-2.5 text-[13px] font-semibold">
+                  Edit flight
+                </button>
+              )
+            }
+          />
         </div>
-      )}
-      {onEdit && (
-        <button type="button" onClick={onEdit} className="w-full border-t border-line py-2.5 text-[13px] font-semibold">
-          Edit flight
-        </button>
       )}
     </article>
   );

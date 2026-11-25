@@ -27,7 +27,12 @@ export function DocumentList({
   canEdit,
   title = "Documents",
   emptyHint,
+  addLabel = "+ Add PDF or photo",
+  beside,
 }: {
+  addLabel?: string;
+  /** Another button shown next to "Add", e.g. "Edit flight". */
+  beside?: React.ReactNode;
   tripId: string;
   parent?: DocParent;
   docs: TripDocument[];
@@ -124,14 +129,17 @@ export function DocumentList({
       {docs.length === 0 && emptyHint && <span className="text-[13px] text-muted">{emptyHint}</span>}
       {canEdit && (
         <>
-          <button
-            type="button"
-            onClick={() => input.current?.click()}
-            disabled={!online || !!busy}
-            className="flex items-center justify-center gap-2 rounded-sm border border-dashed border-line py-2.5 text-[13px] font-semibold text-muted"
-          >
-            {busy ?? (online ? "+ Add PDF or photo" : "You're offline")}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => input.current?.click()}
+              disabled={!online || !!busy}
+              className="flex min-w-0 flex-1 items-center justify-center gap-2 truncate rounded-sm border border-dashed border-line px-2 py-2.5 text-[13px] font-semibold text-muted"
+            >
+              {busy ?? (online ? addLabel : "You're offline")}
+            </button>
+            {beside}
+          </div>
           <input ref={input} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="hidden" onChange={upload} />
         </>
       )}
