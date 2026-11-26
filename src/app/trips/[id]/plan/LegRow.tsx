@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { EscClose } from "@/components/ui";
 import { leaveBy, minutesShown, shownAs } from "@/lib/routes/leg";
+import { englishLine } from "@/lib/routes/lines-jp";
 import type { Choice, RideStep, SavedLeg } from "@/lib/routes/types";
 import { chooseRoute, recheckRoute } from "./actions";
 
@@ -28,7 +29,13 @@ function money(n: number, currency: string | null) {
 /** 95 → "1 h 35 min". */
 const dur = (min: number) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}`);
 const km = (m: number | null) => (m == null ? null : m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`);
-const rides = (l: SavedLeg) => (l.transit?.steps ?? []).filter((s): s is RideStep => s.k === "ride");
+/** Routes saved before a line was in our English list still carry its Japanese name: translate on show. */
+const named = (r: RideStep): RideStep => {
+  if (!/[぀-ヿ一-鿿]/.test(r.line)) return r;
+  const en = englishLine(r.line);
+  return { ...r, line: en.en, code: r.code ?? en.code };
+};
+const rides = (l: SavedLeg) => (l.transit?.steps ?? []).filter((s): s is RideStep => s.k === "ride").map(named);
 
 function Dots() {
   return (
@@ -142,7 +149,7 @@ export function LegRow({
               </div>
             );
           }
-          const r = st;
+          const r = named(st);
           return (
             <div key={i} className={GRID}>
               <span />
