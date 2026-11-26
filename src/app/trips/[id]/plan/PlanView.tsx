@@ -238,20 +238,20 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
               </span>
             )}
             {weather[day] && <WeatherLine w={weather[day]} />}
+            {canRoute && !reorder && (missingRoutes > 0 || routing) && (
+              <button
+                type="button"
+                onClick={() => setAddSheet(true)}
+                disabled={routing}
+                aria-busy={routing}
+                className="mt-0.5 self-start text-[13px] font-semibold text-ink underline decoration-line underline-offset-2 disabled:text-muted"
+              >
+                {routing ? "Adding routes…" : `Add routes for ${missingRoutes} ${missingRoutes === 1 ? "stop" : "stops"}`}
+              </button>
+            )}
           </div>
           {canEdit && (
             <div className="flex flex-none gap-1.5">
-              {canRoute && !reorder && missingRoutes > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setAddSheet(true)}
-                  disabled={routing}
-                  aria-busy={routing}
-                  className="rounded-sm border border-line bg-surface px-3 py-[7px] text-[13px] font-semibold disabled:text-muted"
-                >
-                  {routing ? "Adding…" : `Add routes · ${missingRoutes}`}
-                </button>
-              )}
               {dayItems.length > 1 && (
                 <button
                   type="button"
