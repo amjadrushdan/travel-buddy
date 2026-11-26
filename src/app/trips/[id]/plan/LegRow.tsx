@@ -9,6 +9,8 @@ import { chooseRoute, recheckRoute } from "./actions";
 
 const GRID = "grid grid-cols-[48px_14px_1fr] gap-2.5";
 const SHORT_WALK = 10;
+const PILL =
+  "flex h-7 items-center rounded-full border border-line bg-surface px-3 text-[12px] font-semibold text-ink transition-colors hover:bg-ink/[.03] active:bg-bg";
 
 /** Google Maps directions between the two stops, for live times on the day. */
 function mapsUrl(leg: SavedLeg, mode: string) {
@@ -176,31 +178,20 @@ export function LegRow({
         <span />
         <Dots />
         <div className={`flex min-w-0 items-center gap-2 ${shown === "hidden" ? "py-0.5" : "py-1.5"}`}>
-          {canEdit ? (
-            <button
-              type="button"
-              onClick={onOpen}
-              aria-label="Change how to get there"
-              className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-left text-[12px] text-muted"
-            >
-              {summary}
-              <span aria-hidden className="text-[13px]">
-                ›
-              </span>
-            </button>
-          ) : (
-            <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[12px] text-muted">{summary}</span>
-          )}
-          {shown !== "hidden" && !short && (
-            <a
-              href={mapsUrl(leg, shown)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-auto flex-none text-[12px] font-semibold text-ink underline decoration-line underline-offset-2"
-            >
-              Maps
-            </a>
-          )}
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-[12px] text-muted">{summary}</span>
+          {/* Pills, not a small arrow: easy to hit on a phone. */}
+          <span className="flex flex-none items-center gap-1.5">
+            {shown !== "hidden" && !short && (
+              <a href={mapsUrl(leg, shown)} target="_blank" rel="noopener noreferrer" className={PILL}>
+                Maps
+              </a>
+            )}
+            {canEdit && (
+              <button type="button" onClick={onOpen} aria-label="Change how to get there" className={PILL}>
+                Change
+              </button>
+            )}
+          </span>
         </div>
       </div>
     </li>
