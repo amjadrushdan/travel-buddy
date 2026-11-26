@@ -66,5 +66,21 @@ export async function transitBetween(
   const p = TRANSIT_PROVIDERS.find((t) => t.enabled() && t.covers(from) && t.covers(to));
   if (!p) return { transit: null, provider: null };
   if (!(await claim(p.api, CAPS[p.api]))) throw new CapReached();
-  return { transit: await p.route(from, to, when), provider: p.id };
+  return { transit: bestOption(await p.route(from, to, when)), provider: p.id };
+}
+
+/** What one change of train "costs" when comparing options: walking between platforms, waiting,
+ * the risk of missing the connection with a group. */
+export const CHANGE_MIN = 8;
+
+/**
+ * The option a person would pick, not just the fastest on paper: total time plus CHANGE_MIN
+ * per change, then the cheaper fare. (NAVITIME's own first pick for "arrive by" is the one that
+ * leaves latest, which can mean three changes to save four minutes.)
+ */
+export function bestOption(options: Transit[]): Transit | null {
+  const score = (t: Transit) => (t.minutes ?? 999) + CHANGE_MIN * Math.max(0, t.steps.filter((s) => s.k === "ride").length - 1);
+  return (
+    [...options].sort((a, b) => score(a) - score(b) || (a.fare ?? Infinity) - (b.fare ?? Infinity))[0] ?? null
+  );
 }

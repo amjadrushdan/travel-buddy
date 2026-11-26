@@ -94,6 +94,43 @@ export async function googleFindPlace(text: string, near: LatLng | null): Promis
   };
 }
 
+function toTransit(r: GRoute): Transit | null {
+  const steps: Step[] = [];
+  for (const s of r.legs?.[0]?.steps ?? []) {
+    const sec = secs(s.staticDuration);
+    if (s.travelMode === "TRANSIT" && s.transitDetails) {
+      const t = s.transitDetails;
+      const line = t.transitLine ?? {};
+      steps.push({
+        k: "ride",
+        min: mins(sec),
+        // A short name like "G" or "JY" goes in the badge; a longer one ("Seremban Line") is
+        // usually friendlier than the full name ("KTM Batu Caves - Pulau Sebang/Tampin").
+        ...(line.nameShort && line.nameShort.length <= 3
+          ? { line: line.name || line.nameShort, code: line.nameShort }
+          : { line: line.nameShort || line.name || "Transit" }),
+        color: line.color,
+        from: t.stopDetails?.departureStop?.name,
+        to: t.stopDetails?.arrivalStop?.name,
+        vehicle: line.vehicle?.type?.toLowerCase(),
+      });
+    } else {
+      const last = steps[steps.length - 1];
+      if (last?.k === "walk") last.min = mins(last.min * 60 + sec);
+      else steps.push({ k: "walk", min: mins(sec) });
+    }
+  }
+  if (!steps.some((s) => s.k === "ride")) return null;
+  const fare = r.travelAdvisory?.transitFare;
+  const out: Transit = {
+    minutes: mins(secs(r.duration)),
+    fare: fare?.units ? Number(fare.units) : null,
+    currency: fare?.currencyCode ?? null,
+    steps,
+  };
+  return out;
+}
+
 export const googleTransit: TransitProvider = {
   id: "google",
   api: "routes_google",
@@ -109,46 +146,11 @@ export const googleTransit: TransitProvider = {
         travelMode: "TRANSIT",
         ...(when.arriveBy ? { arrivalTime: at } : { departureTime: at }),
         languageCode: "en",
+        computeAlternativeRoutes: true,
       },
       "routes.duration,routes.travelAdvisory.transitFare,routes.legs.steps.travelMode,routes.legs.steps.staticDuration,routes.legs.steps.transitDetails",
     );
-    const r = j.routes?.[0];
-    if (!r) return null;
-
-    const steps: Step[] = [];
-    for (const s of r.legs?.[0]?.steps ?? []) {
-      const sec = secs(s.staticDuration);
-      if (s.travelMode === "TRANSIT" && s.transitDetails) {
-        const t = s.transitDetails;
-        const line = t.transitLine ?? {};
-        steps.push({
-          k: "ride",
-          min: mins(sec),
-          // A short name like "G" or "JY" goes in the badge; a longer one ("Seremban Line") is
-          // usually friendlier than the full name ("KTM Batu Caves - Pulau Sebang/Tampin").
-          ...(line.nameShort && line.nameShort.length <= 3
-            ? { line: line.name || line.nameShort, code: line.nameShort }
-            : { line: line.nameShort || line.name || "Transit" }),
-          color: line.color,
-          from: t.stopDetails?.departureStop?.name,
-          to: t.stopDetails?.arrivalStop?.name,
-          vehicle: line.vehicle?.type?.toLowerCase(),
-        });
-      } else {
-        const last = steps[steps.length - 1];
-        if (last?.k === "walk") last.min = mins(last.min * 60 + sec);
-        else steps.push({ k: "walk", min: mins(sec) });
-      }
-    }
-    if (!steps.some((s) => s.k === "ride")) return null;
-    const fare = r.travelAdvisory?.transitFare;
-    const out: Transit = {
-      minutes: mins(secs(r.duration)),
-      fare: fare?.units ? Number(fare.units) : null,
-      currency: fare?.currencyCode ?? null,
-      steps,
-    };
-    return out;
+    return (j.routes ?? []).map(toTransit).filter((t): t is Transit => t != null);
   },
 };
 

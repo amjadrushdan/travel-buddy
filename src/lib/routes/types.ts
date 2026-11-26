@@ -61,5 +61,6 @@ export interface TransitProvider {
   /** Server env has what it needs (API key). */
   enabled(): boolean;
   covers(p: LatLng): boolean;
-  route(from: LatLng, to: LatLng, when: LocalTime): Promise<Transit | null>;
+  /** Every option the provider offers for one call (the caller picks; see bestOption). */
+  route(from: LatLng, to: LatLng, when: LocalTime): Promise<Transit[]>;
 }
