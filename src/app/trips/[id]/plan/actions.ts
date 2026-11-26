@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getTrip } from "@/lib/data/trips";
 import { listStays } from "@/lib/data/travel";
 import { stayForDay } from "@/lib/stay-location";
-import { CapReached, driveBetween, routesEnabled, transitBetween, walkBetween, type Claim } from "@/lib/routes";
+import { CapReached, driveBetween, findPlace, routesEnabled, transitBetween, walkBetween, type Claim } from "@/lib/routes";
+import { pointFromMapLink } from "@/lib/routes/maplink";
 import { legMatches, needsWork, samePlace, wantsTransit } from "@/lib/routes/leg";
 import type { Choice, SavedLeg } from "@/lib/routes/types";
 import { LEG_COLUMNS } from "@/lib/data/itinerary";
@@ -178,13 +179,14 @@ export async function setDayTitle(tripId: string, day: string, title: string): P
 
 const ROUTES_PER_RUN = 15;
 
-type Stop = { id: string; day: string; start_time: string | null; place: string | null };
+type Stop = { id: string; day: string; start_time: string | null; place: string | null; map_url: string | null };
+type Point = { lat: number; lng: number };
 type Ctx = {
   supabase: SupabaseClient;
   tripId: string;
   tz: (day: string) => string;
-  /** Where to route from/to: a stay's saved map point when the place is a stay, else the place name. */
-  point: (p: string) => string | { lat: number; lng: number };
+  /** Where a stop is on the map (see routeCtx), or its name for Google to guess. */
+  locate: (s: Stop, force?: boolean) => Promise<Point | string>;
   claim: Claim;
 };
 
@@ -196,17 +198,11 @@ async function routeCtx(tripId: string): Promise<Ctx | { error: string }> {
   const stays = await listStays(tripId);
   const where = trip.destination?.trim();
   const secret = process.env.FLIGHT_STATUS_SECRET!;
-  return {
-    supabase,
-    tripId,
-    tz: (day) => stayForDay(stays, day)?.tz ?? stays[0]?.tz ?? "UTC",
-    point: (p) => {
-      const stay = stays.find((s) => s.lat != null && s.lng != null && (samePlace(p, s.address) || samePlace(p, s.name)));
-      if (stay) return { lat: stay.lat!, lng: stay.lng! };
-      // "Matsuya Ginza" → "Matsuya Ginza, Japan", so Google picks the right one.
-      return where && !p.toLowerCase().includes(where.toLowerCase()) ? `${p}, ${where}` : p;
-    },
-    claim: async (api, cap) => {
+  const { data: saved } = await supabase.from("place_points").select("place_key, lat, lng, source").eq("trip_id", tripId);
+  const places = new Map((saved ?? []).map((p) => [p.place_key as string, p]));
+  const keyOf = (p: string) => p.trim().toLowerCase().slice(0, 200);
+
+  const claim: Claim = async (api, cap) => {
       const { data, error } = await supabase.rpc("route_claim", {
         p_secret: secret,
         p_api: api,
@@ -215,7 +211,45 @@ async function routeCtx(tripId: string): Promise<Ctx | { error: string }> {
       });
       if (error) throw error;
       return data === true;
-    },
+  };
+
+  /**
+   * Cheapest first: a stay's saved point; a place already found in this trip; the stop's own
+   * Google Maps link (free); a Google place search near that day's stay (saved for the trip).
+   * If nothing is found, the name goes to the route lookup as before.
+   */
+  async function locate(stop: Stop, force = false): Promise<Point | string> {
+    const p = stop.place!;
+    const stay = stays.find((s) => s.lat != null && s.lng != null && (samePlace(p, s.address) || samePlace(p, s.name)));
+    if (stay) return { lat: stay.lat!, lng: stay.lng! };
+    const named = where && !p.toLowerCase().includes(where.toLowerCase()) ? `${p}, ${where}` : p;
+
+    const key = keyOf(p);
+    const hit = places.get(key);
+    if (hit && !force) return hit.lat != null && hit.lng != null ? { lat: hit.lat, lng: hit.lng } : named;
+
+    let row: { lat: number | null; lng: number | null; found_name: string | null; found_addr: string | null; source: string };
+    const fromLink = stop.map_url ? await pointFromMapLink(stop.map_url) : null;
+    if (fromLink) {
+      row = { ...fromLink, found_name: null, found_addr: null, source: "map_link" };
+    } else {
+      const near = stayForDay(stays, stop.day);
+      const found = await findPlace(p, near?.lat != null && near.lng != null ? { lat: near.lat, lng: near.lng } : null, claim);
+      row = found
+        ? { ...found.point, found_name: found.name, found_addr: found.address, source: "places" }
+        : { lat: null, lng: null, found_name: null, found_addr: null, source: "none" };
+    }
+    await supabase.from("place_points").upsert({ trip_id: tripId, place_key: key, ...row }, { onConflict: "trip_id,place_key" });
+    places.set(key, { place_key: key, lat: row.lat, lng: row.lng, source: row.source });
+    return row.lat != null && row.lng != null ? { lat: row.lat, lng: row.lng } : named;
+  }
+
+  return {
+    supabase,
+    tripId,
+    tz: (day) => stayForDay(stays, day)?.tz ?? stays[0]?.tz ?? "UTC",
+    locate,
+    claim,
   };
 }
 
@@ -247,7 +281,7 @@ async function fill(ctx: Ctx, leg: SavedLeg, a: Stop, b: Stop, force = false) {
   // Car: Google's driving time only. No train lookup.
   if (leg.choice === "car") {
     if (!force && leg.drive_min != null) return;
-    const d = await driveBetween(ctx.point(a.place!), ctx.point(b.place!), ctx.claim);
+    const d = await driveBetween(await ctx.locate(a, force), await ctx.locate(b, force), ctx.claim);
     leg.drive_min = d?.minutes ?? null;
     leg.drive_m = d?.meters ?? null;
     if (d && leg.from_lat == null) Object.assign(leg, { from_lat: d.from.lat, from_lng: d.from.lng, to_lat: d.to.lat, to_lng: d.to.lng });
@@ -255,7 +289,7 @@ async function fill(ctx: Ctx, leg: SavedLeg, a: Stop, b: Stop, force = false) {
   }
   // The walk call also gives the map points a train check needs.
   if (force || leg.walk_min == null || (leg.from_lat == null && leg.choice === "transit")) {
-    const w = await walkBetween(ctx.point(a.place!), ctx.point(b.place!), ctx.claim);
+    const w = await walkBetween(await ctx.locate(a, force), await ctx.locate(b, force), ctx.claim);
     leg.walk_min = w?.minutes ?? null;
     leg.walk_m = w?.meters ?? null;
     leg.from_lat = w?.from.lat ?? null;
@@ -304,7 +338,7 @@ export async function addRoutes(tripId: string, day: string, by: "auto" | "car" 
   const [{ data: items, error: itemsError }, { data: legs }] = await Promise.all([
     ctx.supabase
       .from("itinerary_items")
-      .select("id, day, start_time, place")
+      .select("id, day, start_time, place, map_url")
       .eq("trip_id", tripId)
       .eq("day", day)
       .order("sort_order")
@@ -393,7 +427,7 @@ async function loadLeg(ctx: Ctx, toItem: string) {
   if (!leg) return null;
   const { data: stops } = await ctx.supabase
     .from("itinerary_items")
-    .select("id, day, start_time, place")
+    .select("id, day, start_time, place, map_url")
     .in("id", [leg.from_item, leg.to_item])
     .returns<Stop[]>();
   const a = stops?.find((s) => s.id === leg.from_item);

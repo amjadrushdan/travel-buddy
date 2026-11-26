@@ -9,7 +9,7 @@
 // Every provider call is counted by `claim` (route_claim in the database: daily and monthly
 // caps per provider), on top of the providers' own limits.
 
-import { googleEnabled, googleRoute, googleTransit } from "./google";
+import { googleEnabled, googleFindPlace, googleRoute, googleTransit } from "./google";
 import { navitime } from "./navitime";
 import type { LatLng, LocalTime, Transit, TransitProvider } from "./types";
 
@@ -19,12 +19,15 @@ export type { SavedLeg, Step, RideStep, WalkStep, Transit, Choice } from "./type
 const TRANSIT_PROVIDERS: TransitProvider[] = [navitime, googleTransit];
 
 /** Our caps, below the providers' free allowances (Google quota 300/day; NAVITIME 500/month). */
-const CAPS: Record<TransitProvider["api"], { daily: number; monthly: number }> = {
+type Api = TransitProvider["api"] | "places_google";
+
+const CAPS: Record<Api, { daily: number; monthly: number }> = {
   routes_google: { daily: 150, monthly: 2000 },
   routes_navitime: { daily: 60, monthly: 400 },
+  places_google: { daily: 100, monthly: 1500 },
 };
 
-export type Claim = (api: TransitProvider["api"], cap: { daily: number; monthly: number }) => Promise<boolean>;
+export type Claim = (api: Api, cap: { daily: number; monthly: number }) => Promise<boolean>;
 
 export class CapReached extends Error {}
 
@@ -42,6 +45,12 @@ export async function walkBetween(fromPlace: string | LatLng, toPlace: string | 
 export async function driveBetween(fromPlace: string | LatLng, toPlace: string | LatLng, claim: Claim): Promise<Walk | null> {
   if (!(await claim("routes_google", CAPS.routes_google))) throw new CapReached();
   return googleRoute(fromPlace, toPlace, "DRIVE");
+}
+
+/** Where a named place is, searching near `near` first. null = not found. */
+export async function findPlace(text: string, near: LatLng | null, claim: Claim) {
+  if (!(await claim("places_google", CAPS.places_google))) throw new CapReached();
+  return googleFindPlace(text, near);
 }
 
 /**

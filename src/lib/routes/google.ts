@@ -63,6 +63,37 @@ export async function googleRoute(
   return { minutes: mins(secs(r.duration)), meters: r.distanceMeters ?? 0, from: a, to: b };
 }
 
+/**
+ * Find a place by name (restaurants, shops, sights), preferring results within 50 km of `near`
+ * (the day's stay). Google Places "Text Search"; one call per place, saved by the caller.
+ */
+export async function googleFindPlace(text: string, near: LatLng | null): Promise<{ point: LatLng; name: string; address: string } | null> {
+  const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key()!,
+      "X-Goog-FieldMask": "places.location,places.displayName,places.formattedAddress",
+    },
+    body: JSON.stringify({
+      textQuery: text,
+      maxResultCount: 1,
+      languageCode: "en",
+      ...(near ? { locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 50000 } } } : {}),
+    }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Google places ${res.status}`);
+  const p = ((await res.json()) as { places?: { location?: { latitude: number; longitude: number }; displayName?: { text?: string }; formattedAddress?: string }[] })
+    .places?.[0];
+  if (!p?.location) return null;
+  return {
+    point: { lat: p.location.latitude, lng: p.location.longitude },
+    name: (p.displayName?.text ?? "").normalize("NFKC").slice(0, 200),
+    address: (p.formattedAddress ?? "").slice(0, 300),
+  };
+}
+
 export const googleTransit: TransitProvider = {
   id: "google",
   api: "routes_google",
