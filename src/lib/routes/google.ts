@@ -2,8 +2,8 @@
 // trains/buses where Google is allowed to share them. Japan returns no transit routes through
 // the API, so NAVITIME covers Japan instead (see index.ts).
 
-import { timeAt, zonedToUtc } from "@/lib/time";
-import type { LatLng, Step, TransitProvider, TransitResult } from "./types";
+import { zonedToUtc } from "@/lib/time";
+import type { LatLng, Step, Transit, TransitProvider } from "./types";
 
 const URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
 const key = () => process.env.GOOGLE_MAPS_API_KEY;
@@ -80,16 +80,11 @@ export const googleTransit: TransitProvider = {
     if (!r) return null;
 
     const steps: Step[] = [];
-    let leave: string | null = null;
-    let walkBefore = 0;
     for (const s of r.legs?.[0]?.steps ?? []) {
       const sec = secs(s.staticDuration);
       if (s.travelMode === "TRANSIT" && s.transitDetails) {
         const t = s.transitDetails;
         const line = t.transitLine ?? {};
-        if (!leave && t.stopDetails?.departureTime) {
-          leave = timeAt(new Date(Date.parse(t.stopDetails.departureTime) - walkBefore * 1000).toISOString(), when.tz);
-        }
         steps.push({
           k: "ride",
           min: mins(sec),
@@ -104,7 +99,6 @@ export const googleTransit: TransitProvider = {
           vehicle: line.vehicle?.type?.toLowerCase(),
         });
       } else {
-        if (!steps.some((x) => x.k === "ride")) walkBefore += sec;
         const last = steps[steps.length - 1];
         if (last?.k === "walk") last.min = mins(last.min * 60 + sec);
         else steps.push({ k: "walk", min: mins(sec) });
@@ -112,9 +106,8 @@ export const googleTransit: TransitProvider = {
     }
     if (!steps.some((s) => s.k === "ride")) return null;
     const fare = r.travelAdvisory?.transitFare;
-    const out: TransitResult = {
+    const out: Transit = {
       minutes: mins(secs(r.duration)),
-      leave_at: leave,
       fare: fare?.units ? Number(fare.units) : null,
       currency: fare?.currencyCode ?? null,
       steps,

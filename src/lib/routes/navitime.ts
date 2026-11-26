@@ -42,10 +42,8 @@ export const navitime: TransitProvider = {
 
     const steps: Step[] = [];
     const secs = item.sections;
-    let leave: string | null = null;
     secs.forEach((s, i) => {
       if (s.type !== "move") return;
-      if (!leave && s.from_time) leave = s.from_time.slice(11, 16);
       const min = Math.max(1, s.time ?? 0);
       if (s.move === "walk") {
         const last = steps[steps.length - 1];
@@ -71,7 +69,6 @@ export const navitime: TransitProvider = {
     const fare = item.summary.move.fare?.unit_0;
     return {
       minutes: item.summary.move.time ?? null,
-      leave_at: leave,
       fare: fare ?? null,
       currency: fare != null ? "JPY" : null,
       steps,

@@ -5,7 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getTrip } from "@/lib/data/trips";
 import { listStays } from "@/lib/data/travel";
 import { stayForDay } from "@/lib/stay-location";
-import { CapReached, routesEnabled, workOutLeg, type Claim } from "@/lib/routes";
+import { CapReached, routesEnabled, transitBetween, walkBetween, type Claim } from "@/lib/routes";
+import { legMatches, needsWork, samePlace, wantsTransit } from "@/lib/routes/leg";
+import type { Choice, SavedLeg } from "@/lib/routes/types";
+import { LEG_COLUMNS } from "@/lib/data/itinerary";
 
 export type ActionResult = { error?: string };
 
@@ -168,43 +171,125 @@ export async function setDayTitle(tripId: string, day: string, title: string): P
 }
 
 // ---------------------------------------------------------------- getting between stops
+//
+// API calls are spent only here, and only when an editor asks: "Add routes" for a day,
+// choosing Train on a leg that has no train answer yet, or "Check again". Everything else
+// (switching walk/train/car, hiding, changing times) reads what's saved.
 
 const ROUTES_PER_RUN = 15;
-const samePlace = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+type Stop = { id: string; day: string; start_time: string | null; place: string | null };
+type Ctx = { supabase: SupabaseClient; tripId: string; tz: (day: string) => string; address: (p: string) => string; claim: Claim };
+
+async function routeCtx(tripId: string): Promise<Ctx | { error: string }> {
+  if (!routesEnabled() || !process.env.FLIGHT_STATUS_SECRET) return { error: "Routes aren't set up on the server yet." };
+  const { trip, me } = await getTrip(tripId);
+  if (me.role === "viewer") return { error: "Only owners and editors can change routes." };
+  const supabase = await createClient();
+  const stays = await listStays(tripId);
+  const where = trip.destination?.trim();
+  const secret = process.env.FLIGHT_STATUS_SECRET!;
+  return {
+    supabase,
+    tripId,
+    tz: (day) => stayForDay(stays, day)?.tz ?? stays[0]?.tz ?? "UTC",
+    // "Matsuya Ginza" → "Matsuya Ginza, Japan", so Google picks the right one.
+    address: (p) => (where && !p.toLowerCase().includes(where.toLowerCase()) ? `${p}, ${where}` : p),
+    claim: async (api, cap) => {
+      const { data, error } = await supabase.rpc("route_claim", {
+        p_secret: secret,
+        p_api: api,
+        p_daily_cap: cap.daily,
+        p_monthly_cap: cap.monthly,
+      });
+      if (error) throw error;
+      return data === true;
+    },
+  };
+}
+
+const emptyLeg = (a: Stop, b: Stop, choice: Choice = "auto"): SavedLeg => ({
+  to_item: b.id,
+  from_item: a.id,
+  from_place: a.place!,
+  to_place: b.place!,
+  choice,
+  from_lat: null,
+  from_lng: null,
+  to_lat: null,
+  to_lng: null,
+  walk_min: null,
+  walk_m: null,
+  transit: null,
+  transit_at: null,
+  provider: null,
+});
+
+/**
+ * Fill in what the leg is missing: the walk (also places both stops on the map), then a train
+ * answer if one could matter. `force` asks again even for what's already saved.
+ */
+async function fill(ctx: Ctx, leg: SavedLeg, a: Stop, b: Stop, force = false) {
+  // The walk call also gives the map points a train check needs.
+  if (force || leg.walk_min == null || (leg.from_lat == null && leg.choice === "transit")) {
+    const w = await walkBetween(ctx.address(a.place!), ctx.address(b.place!), ctx.claim);
+    leg.walk_min = w?.minutes ?? null;
+    leg.walk_m = w?.meters ?? null;
+    leg.from_lat = w?.from.lat ?? null;
+    leg.from_lng = w?.from.lng ?? null;
+    leg.to_lat = w?.to.lat ?? null;
+    leg.to_lng = w?.to.lng ?? null;
+  }
+  if (leg.from_lat == null || leg.from_lng == null || leg.to_lat == null || leg.to_lng == null) return;
+  const ask = force ? leg.transit_at != null || wantsTransit({ ...leg, transit_at: null }) : wantsTransit(leg);
+  if (!ask) return;
+  // Arrive in time for the next stop; else leave when the last one starts; else mid-morning.
+  const arrive = b.start_time?.slice(0, 5);
+  const leave = a.start_time?.slice(0, 5);
+  const when = { local: `${b.day}T${arrive ?? leave ?? "10:00"}`, tz: ctx.tz(b.day), arriveBy: !!arrive };
+  let r: { transit: SavedLeg["transit"]; provider: string | null };
+  try {
+    r = await transitBetween({ lat: leg.from_lat, lng: leg.from_lng }, { lat: leg.to_lat, lng: leg.to_lng }, when, ctx.claim);
+  } catch (e) {
+    if (e instanceof CapReached) throw e;
+    return; // provider hiccup: leave it unchecked so a later run tries again
+  }
+  if (r.provider) {
+    leg.transit = r.transit;
+    leg.transit_at = new Date().toISOString();
+    leg.provider = r.provider;
+  }
+}
+
+async function saveLeg(ctx: Ctx, leg: SavedLeg) {
+  const { error } = await ctx.supabase.from("route_legs").upsert({ ...leg, trip_id: ctx.tripId }, { onConflict: "to_item" });
+  return error?.message ?? null;
+}
 
 export type RoutesResult = { error?: string; done?: number; upToDate?: boolean; more?: boolean; capped?: boolean };
 
-/**
- * Work out walking or train routes between this day's stops that don't have one yet, and save
- * them for the group. Owners and editors only (RLS on route_legs).
- */
-export async function workOutRoutes(tripId: string, day: string): Promise<RoutesResult> {
+/** Add routes for this day's stops that don't have one yet (or need a train answer). */
+export async function addRoutes(tripId: string, day: string): Promise<RoutesResult> {
   if (!DATE_RE.test(day)) return { error: "Bad day." };
-  if (!routesEnabled() || !process.env.FLIGHT_STATUS_SECRET) return { error: "Routes aren't set up on the server yet." };
+  const ctx = await routeCtx(tripId);
+  if ("error" in ctx) return ctx;
 
-  const { trip, me } = await getTrip(tripId);
-  if (me.role === "viewer") return { error: "Only owners and editors can work out routes." };
-  const supabase = await createClient();
-
-  const [{ data: items, error: itemsError }, { data: legs }, stays] = await Promise.all([
-    supabase
+  const [{ data: items, error: itemsError }, { data: legs }] = await Promise.all([
+    ctx.supabase
       .from("itinerary_items")
-      .select("id, start_time, place")
+      .select("id, day, start_time, place")
       .eq("trip_id", tripId)
       .eq("day", day)
       .order("sort_order")
-      .order("start_time", { nullsFirst: false }),
-    supabase.from("route_legs").select("to_item, from_item, from_place, to_place").eq("trip_id", tripId),
-    listStays(tripId),
+      .order("start_time", { nullsFirst: false })
+      .returns<Stop[]>(),
+    ctx.supabase.from("route_legs").select(LEG_COLUMNS).eq("trip_id", tripId).returns<SavedLeg[]>(),
   ]);
   if (itemsError) return { error: itemsError.message };
   const list = items ?? [];
-  const saved = new Map((legs ?? []).map((l) => [l.to_item as string, l]));
-  const tz = stayForDay(stays, day)?.tz ?? stays[0]?.tz ?? "UTC";
-  const where = trip.destination?.trim();
-  const address = (p: string) => (where && !p.toLowerCase().includes(where.toLowerCase()) ? `${p}, ${where}` : p);
+  const all = legs ?? [];
+  const saved = new Map(all.map((l) => [l.to_item, l]));
 
-  // Consecutive stops with different places need a leg.
   const wanted = list.slice(1).flatMap((b, i) => {
     const a = list[i];
     return a.place && b.place && !samePlace(a.place, b.place) ? [{ a, b }] : [];
@@ -213,52 +298,113 @@ export async function workOutRoutes(tripId: string, day: string): Promise<Routes
   // Drop legs that no longer join two stops of this day.
   const keep = new Set(wanted.map((w) => w.b.id));
   const stale = list.filter((it) => saved.has(it.id) && !keep.has(it.id)).map((it) => it.id);
-  if (stale.length) await supabase.from("route_legs").delete().in("to_item", stale);
+  if (stale.length) await ctx.supabase.from("route_legs").delete().in("to_item", stale);
 
-  const todo = wanted.filter(({ a, b }) => {
-    const l = saved.get(b.id);
-    return !l || l.from_item !== a.id || l.from_place !== a.place || l.to_place !== b.place;
-  });
+  const todo = wanted.filter(({ a, b }) => needsWork(saved.get(b.id), a, b));
   if (!todo.length) {
     if (stale.length) revalidate(tripId);
     return { upToDate: true, done: 0 };
   }
 
-  const secret = process.env.FLIGHT_STATUS_SECRET!;
-  const claim: Claim = async (api, cap) => {
-    const { data, error } = await supabase.rpc("route_claim", {
-      p_secret: secret,
-      p_api: api,
-      p_daily_cap: cap.daily,
-      p_monthly_cap: cap.monthly,
-    });
-    if (error) throw error;
-    return data === true;
-  };
-
   let done = 0;
   let capped = false;
   for (const { a, b } of todo.slice(0, ROUTES_PER_RUN)) {
-    const arrive = b.start_time?.slice(0, 5);
-    const leave = a.start_time?.slice(0, 5);
-    const when = { local: `${day}T${arrive ?? leave ?? "10:00"}`, tz, arriveBy: !!arrive };
-    let leg;
-    try {
-      leg = await workOutLeg(address(a.place!), address(b.place!), when, claim);
-    } catch (e) {
-      if (e instanceof CapReached) {
-        capped = true;
-        break;
+    const old = saved.get(b.id);
+    let leg: SavedLeg;
+    if (old && legMatches(old, a, b)) {
+      leg = { ...old }; // same stops, only the train answer is missing
+    } else {
+      leg = emptyLeg(a, b, old?.choice); // keep the editor's choice for this link
+      // The same two places elsewhere in the trip: reuse that answer, no API call.
+      const twin = all.find((l) => samePlace(l.from_place, a.place) && samePlace(l.to_place, b.place) && l.from_lat != null);
+      if (twin) {
+        Object.assign(leg, {
+          from_lat: twin.from_lat,
+          from_lng: twin.from_lng,
+          to_lat: twin.to_lat,
+          to_lng: twin.to_lng,
+          walk_min: twin.walk_min,
+          walk_m: twin.walk_m,
+          transit: twin.transit,
+          transit_at: twin.transit_at,
+          provider: twin.provider,
+        });
       }
-      continue; // provider hiccup: try this leg again next time
     }
-    const { error } = await supabase.from("route_legs").upsert(
-      { to_item: b.id, trip_id: tripId, from_item: a.id, from_place: a.place!, to_place: b.place!, ...leg },
-      { onConflict: "to_item" },
-    );
-    if (error) return { error: error.message, done };
-    done++;
+    try {
+      if (leg.choice !== "car" && leg.choice !== "hidden") await fill(ctx, leg, a, b);
+    } catch (e) {
+      if (!(e instanceof CapReached)) throw e;
+      capped = true;
+    }
+    // Save even a half-filled leg (walk found, train capped): the next run finishes it.
+    if (!capped || leg.from_lat != null || leg.choice === "car" || leg.choice === "hidden") {
+      const err = await saveLeg(ctx, leg);
+      if (err) return { error: err, done };
+      done++;
+    }
+    if (capped) break;
   }
   revalidate(tripId);
   return { done, capped, more: !capped && todo.length > ROUTES_PER_RUN };
+}
+
+async function loadLeg(ctx: Ctx, toItem: string) {
+  const { data: leg } = await ctx.supabase
+    .from("route_legs")
+    .select(LEG_COLUMNS)
+    .eq("trip_id", ctx.tripId)
+    .eq("to_item", toItem)
+    .maybeSingle<SavedLeg>();
+  if (!leg) return null;
+  const { data: stops } = await ctx.supabase
+    .from("itinerary_items")
+    .select("id, day, start_time, place")
+    .in("id", [leg.from_item, leg.to_item])
+    .returns<Stop[]>();
+  const a = stops?.find((s) => s.id === leg.from_item);
+  const b = stops?.find((s) => s.id === leg.to_item);
+  return a && b && a.place && b.place ? { leg, a, b } : null;
+}
+
+const CHOICES: Choice[] = ["auto", "walk", "transit", "car", "hidden"];
+
+/** Walk / Train / Car or taxi / Hide for one leg. A missing walk or train answer is fetched once. */
+export async function chooseRoute(tripId: string, toItem: string, choice: Choice): Promise<{ error?: string; note?: string }> {
+  if (!CHOICES.includes(choice)) return { error: "Bad choice." };
+  const ctx = await routeCtx(tripId);
+  if ("error" in ctx) return ctx;
+  const found = await loadLeg(ctx, toItem);
+  if (!found) return { error: "That route no longer exists. Tap Add routes." };
+  const { leg, a, b } = found;
+  leg.choice = choice;
+  try {
+    if (choice === "walk" || choice === "transit") await fill(ctx, leg, a, b);
+  } catch (e) {
+    if (e instanceof CapReached) return { error: "Daily route limit reached. Try tomorrow." };
+    throw e;
+  }
+  const err = await saveLeg(ctx, leg);
+  if (err) return { error: err };
+  revalidate(tripId);
+  if (choice === "transit" && !leg.transit) return { note: "No train found here, so it shows the walk." };
+  return {};
+}
+
+/** Ask the providers again for one leg (times looked wrong, or a place was fixed). */
+export async function recheckRoute(tripId: string, toItem: string): Promise<{ error?: string }> {
+  const ctx = await routeCtx(tripId);
+  if ("error" in ctx) return ctx;
+  const found = await loadLeg(ctx, toItem);
+  if (!found) return { error: "That route no longer exists. Tap Add routes." };
+  try {
+    await fill(ctx, found.leg, found.a, found.b, true);
+  } catch (e) {
+    if (e instanceof CapReached) return { error: "Daily route limit reached. Try tomorrow." };
+    throw e;
+  }
+  const err = await saveLeg(ctx, found.leg);
+  if (err) return { error: err };
+  revalidate(tripId);
+  return {};
 }

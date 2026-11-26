@@ -6,9 +6,10 @@ import { LinkedText } from "@/components/LinkedText";
 import { EscClose } from "@/components/ui";
 import { mapLink, nowIndex, type ItineraryItem } from "@/lib/itinerary";
 import { weatherLabel, type DayWeather } from "@/lib/weather";
-import type { RouteLeg } from "@/lib/data/itinerary";
-import { deleteItem, reorderDay, saveItem, setDayTitle, workOutRoutes } from "./actions";
-import { LegRow } from "./LegRow";
+import { needsWork, samePlace } from "@/lib/routes/leg";
+import type { SavedLeg } from "@/lib/routes/types";
+import { addRoutes, deleteItem, reorderDay, saveItem, setDayTitle } from "./actions";
+import { LegRow, RouteSheet } from "./LegRow";
 
 const input = "w-full rounded-sm border border-line bg-surface p-3 text-base outline-none focus:border-ink";
 
@@ -19,7 +20,7 @@ type Props = {
   items: ItineraryItem[];
   titles: Record<string, string>;
   weather: Record<string, DayWeather>;
-  legs: RouteLeg[];
+  legs: SavedLeg[];
   /** Editor, and the server has route keys. */
   canRoute: boolean;
   canEdit: boolean;
@@ -39,6 +40,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
   const [pending, start] = useTransition();
   const [routing, startRouting] = useTransition();
   const legFor = useMemo(() => new Map(legs.map((l) => [l.to_item, l])), [legs]);
+  const [routeSheet, setRouteSheet] = useState<string | null>(null); // to_item of the open leg
   const chipsRef = useRef<HTMLDivElement>(null);
 
   // Device clock, read after mount so server and browser render the same HTML first.
@@ -86,12 +88,17 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
   const isToday = !!now && now.date === day;
   const current = isToday ? nowIndex(dayItems, now!.time) : -1;
   const dayNo = day ? days.indexOf(day) + 1 : 0;
+  // Stops on this day that still need a route (the Add routes button only shows then).
+  const missingRoutes = dayItems.filter((b, k) => {
+    const a = dayItems[k - 1];
+    return a?.place && b.place && !samePlace(a.place, b.place) && needsWork(legFor.get(b.id), a, b);
+  }).length;
 
   function routes() {
     if (!day) return;
     const d = day;
     startRouting(async () => {
-      const res = await workOutRoutes(tripId, d).catch(() => ({ error: "Couldn't work out routes. Are you offline?" }) as const);
+      const res = await addRoutes(tripId, d).catch(() => ({ error: "Couldn't add routes. Are you offline?" }) as const);
       if ("error" in res && res.error) return setToast(res.error);
       if ("upToDate" in res && res.upToDate) return setToast("Routes are up to date");
       const n = "done" in res ? (res.done ?? 0) : 0;
@@ -228,7 +235,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
           </div>
           {canEdit && (
             <div className="flex flex-none gap-1.5">
-              {canRoute && !reorder && dayItems.length > 1 && (
+              {canRoute && !reorder && missingRoutes > 0 && (
                 <button
                   type="button"
                   onClick={routes}
@@ -236,7 +243,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
                   aria-busy={routing}
                   className="rounded-sm border border-line bg-surface px-3 py-[7px] text-[13px] font-semibold disabled:text-muted"
                 >
-                  {routing ? "Working…" : "Routes"}
+                  {routing ? "Adding…" : `Add routes · ${missingRoutes}`}
                 </button>
               )}
               {dayItems.length > 1 && (
@@ -281,9 +288,10 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
               const leg = legFor.get(it.id);
               const showLeg =
                 !reorder && prev && leg && leg.from_item === prev.id && leg.from_place === prev.place && leg.to_place === it.place;
+              const arrive = it.start_time ? it.start_time.slice(0, 5) : null;
               return (
                 <Fragment key={it.id}>
-                {showLeg && <LegRow leg={leg} dim={past} />}
+                {showLeg && <LegRow leg={leg} arrive={arrive} dim={past} canEdit={canRoute} onOpen={() => setRouteSheet(it.id)} />}
                 <li className={`grid grid-cols-[48px_14px_1fr_auto] items-stretch gap-2.5 ${past ? "opacity-45" : ""}`}>
                   <span
                     className={`pt-[13px] font-mono text-sm tabular-nums ${isNow ? "font-semibold text-now-ink" : ""} ${time ? "" : "text-muted"}`}
@@ -374,6 +382,24 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
       {titleSheet && day && (
         <DayTitleSheet tripId={tripId} day={day} current={titles[day] ?? ""} onClose={() => setTitleSheet(false)} onDone={setToast} />
       )}
+      {routeSheet &&
+        (() => {
+          const leg = legFor.get(routeSheet);
+          const to = items.find((x) => x.id === routeSheet);
+          const from = leg && items.find((x) => x.id === leg.from_item);
+          if (!leg || !to || !from) return null;
+          return (
+            <RouteSheet
+              tripId={tripId}
+              leg={leg}
+              fromTitle={from.title}
+              toTitle={to.title}
+              arrive={to.start_time ? to.start_time.slice(0, 5) : null}
+              onClose={() => setRouteSheet(null)}
+              onDone={setToast}
+            />
+          );
+        })()}
       {toast && <Toast text={toast} />}
     </main>
   );
