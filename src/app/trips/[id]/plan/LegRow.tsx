@@ -124,27 +124,47 @@ export function LegRow({
   return (
     <li className={`flex flex-col ${dim ? "opacity-45" : ""}`} aria-label="Getting there">
       {shown === "transit" &&
-        rides(leg).map((r, i) => (
-          <div key={i} className={GRID}>
-            <span />
-            <div className="flex justify-center" aria-hidden>
-              <span className="w-[4px] rounded-full" style={{ background: r.color ?? "var(--color-ink)" }} />
-            </div>
-            <div className="flex min-w-0 items-start gap-2 py-1.5">
-              <Badge r={r} />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-[13px] font-semibold">
-                  {r.line} <span className="font-normal text-muted">· {r.min} min</span>
+        (leg.transit?.steps ?? []).map((st, i, all) => {
+          if (st.k === "walk") {
+            // To the first station, between trains (a change), or from the last station.
+            const first = i === 0;
+            const last = i === all.length - 1;
+            const next = all[i + 1];
+            const label = first && next?.k === "ride" && next.from ? `to ${next.from}` : !first && !last ? "to change" : "";
+            return (
+              <div key={i} className={GRID}>
+                <span />
+                <Dots />
+                <span className="flex items-center gap-1.5 py-1 text-[12px] text-muted">
+                  <Icon d={WALK} />
+                  Walk {st.min} min {label}
                 </span>
-                {(r.from || r.to) && (
-                  <span className="text-[12px] text-muted [overflow-wrap:anywhere]">
-                    {r.from} → {r.to}
+              </div>
+            );
+          }
+          const r = st;
+          return (
+            <div key={i} className={GRID}>
+              <span />
+              <div className="flex justify-center" aria-hidden>
+                <span className="w-[4px] rounded-full" style={{ background: r.color ?? "var(--color-ink)" }} />
+              </div>
+              <div className="flex min-w-0 items-start gap-2 py-1.5">
+                <Badge r={r} />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-[13px] font-semibold">
+                    {r.line} <span className="font-normal text-muted">· {r.min} min</span>
                   </span>
-                )}
-              </span>
+                  {(r.from || r.to) && (
+                    <span className="text-[12px] text-muted [overflow-wrap:anywhere]">
+                      {r.from} → {r.to}
+                    </span>
+                  )}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       <div className={GRID}>
         <span />
         <Dots />
