@@ -27,7 +27,7 @@ export async function listItinerary(tripId: string): Promise<ItineraryItem[]> {
 }
 
 export const LEG_COLUMNS =
-  "to_item, from_item, from_place, to_place, choice, from_lat, from_lng, to_lat, to_lng, walk_min, walk_m, drive_min, drive_m, transit, transit_at, provider";
+  "to_item, from_item, from_place, to_place, choice, from_lat, from_lng, to_lat, to_lng, walk_min, walk_m, drive_min, drive_m, toll, toll_currency, transit, transit_at, provider";
 
 /** Saved ways of getting between stops (lib/routes), keyed by the stop they lead to. */
 export async function listRouteLegs(tripId: string): Promise<SavedLeg[]> {

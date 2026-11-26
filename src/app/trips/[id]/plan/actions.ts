@@ -267,6 +267,8 @@ const emptyLeg = (a: Stop, b: Stop, choice: Choice = "auto"): SavedLeg => ({
   walk_m: null,
   drive_min: null,
   drive_m: null,
+  toll: null,
+  toll_currency: null,
   transit: null,
   transit_at: null,
   provider: null,
@@ -284,6 +286,8 @@ async function fill(ctx: Ctx, leg: SavedLeg, a: Stop, b: Stop, force = false) {
     const d = await driveBetween(await ctx.locate(a, force), await ctx.locate(b, force), ctx.claim);
     leg.drive_min = d?.minutes ?? null;
     leg.drive_m = d?.meters ?? null;
+    leg.toll = d?.toll?.amount ?? null;
+    leg.toll_currency = d?.toll?.currency ?? null;
     if (d && leg.from_lat == null) Object.assign(leg, { from_lat: d.from.lat, from_lng: d.from.lng, to_lat: d.to.lat, to_lng: d.to.lng });
     return;
   }
@@ -392,6 +396,8 @@ export async function addRoutes(tripId: string, day: string, by: "auto" | "car" 
           walk_m: twin.walk_m,
           drive_min: twin.drive_min,
           drive_m: twin.drive_m,
+          toll: twin.toll,
+          toll_currency: twin.toll_currency,
           transit: twin.transit,
           transit_at: twin.transit_at,
           provider: twin.provider,

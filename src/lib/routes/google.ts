@@ -29,7 +29,10 @@ type GRoute = {
     endLocation?: { latLng: { latitude: number; longitude: number } };
     steps?: GStep[];
   }[];
-  travelAdvisory?: { transitFare?: { currencyCode?: string; units?: string } };
+  travelAdvisory?: {
+    transitFare?: { currencyCode?: string; units?: string };
+    tollInfo?: { estimatedPrice?: { currencyCode?: string; units?: string }[] };
+  };
 };
 type GStep = {
   travelMode?: string;
@@ -50,17 +53,27 @@ export async function googleRoute(
   from: string | LatLng,
   to: string | LatLng,
   mode: "WALK" | "DRIVE",
-): Promise<{ minutes: number; meters: number; from: LatLng; to: LatLng } | null> {
+): Promise<{ minutes: number; meters: number; from: LatLng; to: LatLng; toll: { amount: number; currency: string } | null } | null> {
   const wp = (p: string | LatLng) => (typeof p === "string" ? { address: p } : { location: { latLng: { latitude: p.lat, longitude: p.lng } } });
+  const drive = mode === "DRIVE";
   const j = await call(
-    { origin: wp(from), destination: wp(to), travelMode: mode },
-    "routes.duration,routes.distanceMeters,routes.legs.startLocation,routes.legs.endLocation",
+    {
+      origin: wp(from),
+      destination: wp(to),
+      travelMode: mode,
+      // Expressway tolls, at the ETC price in Japan (rental cars carry an ETC card).
+      ...(drive ? { extraComputations: ["TOLLS"], routeModifiers: { tollPasses: ["JP_ETC"] } } : {}),
+    },
+    `routes.duration,routes.distanceMeters,routes.legs.startLocation,routes.legs.endLocation${drive ? ",routes.travelAdvisory.tollInfo" : ""}`,
   );
   const r = j.routes?.[0];
   const a = ll(r?.legs?.[0]?.startLocation);
   const b = ll(r?.legs?.[0]?.endLocation);
   if (!r || !a || !b) return null;
-  return { minutes: mins(secs(r.duration)), meters: r.distanceMeters ?? 0, from: a, to: b };
+  // No tollInfo on a drive = no tolls on the way.
+  const price = r.travelAdvisory?.tollInfo?.estimatedPrice?.[0];
+  const toll = !drive ? null : price?.units ? { amount: Number(price.units), currency: price.currencyCode ?? "JPY" } : r.travelAdvisory?.tollInfo ? null : { amount: 0, currency: "JPY" };
+  return { minutes: mins(secs(r.duration)), meters: r.distanceMeters ?? 0, from: a, to: b, toll };
 }
 
 /**

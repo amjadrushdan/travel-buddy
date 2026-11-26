@@ -89,7 +89,7 @@ export function LegRow({
     shown === "transit" ? (
       <>
         <span className="font-semibold text-ink">{min != null ? dur(min) : ""}</span>
-        {leg.transit?.fare != null && <span>· {money(leg.transit.fare, leg.transit.currency)}</span>}
+        {leg.transit?.fare != null && <span>· {money(leg.transit.fare, leg.transit.currency)} each</span>}
         {leave && <span>· leave {leave}</span>}
       </>
     ) : shown === "walk" ? (
@@ -110,6 +110,7 @@ export function LegRow({
         ) : (
           <span>Car or taxi</span>
         )}
+        {!!leg.toll && <span>· {money(leg.toll, leg.toll_currency)} toll</span>}
         {leave && <span>· leave {leave}</span>}
       </>
     ) : shown === "hidden" ? (
@@ -263,7 +264,7 @@ export function RouteSheet({
               `Train · ${leg.transit.minutes != null ? dur(leg.transit.minutes) : ""}`,
               [
                 r.map((x) => `${x.line} ${x.min} min`).join(" → "),
-                leg.transit.fare != null ? money(leg.transit.fare, leg.transit.currency) : null,
+                leg.transit.fare != null ? `${money(leg.transit.fare, leg.transit.currency)} each` : null,
                 transitLeave ? `leave ${transitLeave}` : null,
               ]
                 .filter(Boolean)
@@ -289,7 +290,9 @@ export function RouteSheet({
           <Icon d={CAR} />,
           leg.drive_min != null ? `Car · ${dur(leg.drive_min)}` : "Car or taxi",
           leg.drive_min != null
-            ? [km(leg.drive_m), driveLeave ? `leave ${driveLeave}` : null].filter(Boolean).join(" · ")
+            ? [km(leg.drive_m), leg.toll ? `${money(leg.toll, leg.toll_currency)} toll` : leg.toll === 0 ? "no tolls" : null, driveLeave ? `leave ${driveLeave}` : null]
+                .filter(Boolean)
+                .join(" · ")
             : "Rental car or taxi. Looks up the driving time",
           shown === "car" ? null : () => choose("car", "Marked as car or taxi"),
         )}

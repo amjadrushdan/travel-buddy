@@ -33,7 +33,7 @@ export class CapReached extends Error {}
 
 export const routesEnabled = googleEnabled;
 
-export type Walk = { minutes: number; meters: number; from: LatLng; to: LatLng };
+export type Walk = { minutes: number; meters: number; from: LatLng; to: LatLng; toll: { amount: number; currency: string } | null };
 
 /** null = a place couldn't be found. */
 export async function walkBetween(fromPlace: string | LatLng, toPlace: string | LatLng, claim: Claim): Promise<Walk | null> {

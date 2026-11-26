@@ -44,6 +44,9 @@ export type SavedLeg = {
   /** Driving time, only looked up for legs marked car. */
   drive_min: number | null;
   drive_m: number | null;
+  /** Expressway toll for the drive (0 = none, null = unknown). */
+  toll: number | null;
+  toll_currency: string | null;
   /** null with transit_at set: no train found. null without: not checked yet. */
   transit: Transit | null;
   transit_at: string | null;
