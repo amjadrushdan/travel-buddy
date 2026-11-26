@@ -7,6 +7,7 @@ import type { Choice, RideStep, SavedLeg } from "@/lib/routes/types";
 import { chooseRoute, recheckRoute } from "./actions";
 
 const GRID = "grid grid-cols-[48px_14px_1fr] gap-2.5";
+const SHORT_WALK = 10;
 
 /** Google Maps directions between the two stops, for live times on the day. */
 function mapsUrl(leg: SavedLeg, mode: string) {
@@ -78,8 +79,9 @@ export function LegRow({
   const shown = shownAs(leg);
   if (shown === "hidden" && !canEdit) return null;
   const min = minutesShown(leg);
-  const leave = leaveBy(arrive, min);
-  const walkMin = (leg.transit?.steps ?? []).reduce((n, s) => (s.k === "walk" ? n + s.min : n), 0);
+  // A short walk is just "Walk 3 min": its leave time and a Maps link would only add noise.
+  const short = shown === "walk" && min != null && min < SHORT_WALK;
+  const leave = short ? null : leaveBy(arrive, min);
 
   const summary =
     shown === "transit" ? (
@@ -87,7 +89,6 @@ export function LegRow({
         <span className="font-semibold text-ink">{min} min</span>
         {leg.transit?.fare != null && <span>· {money(leg.transit.fare, leg.transit.currency)}</span>}
         {leave && <span>· leave {leave}</span>}
-        {walkMin > 0 && <span>· {walkMin} min walk</span>}
       </>
     ) : shown === "walk" ? (
       <>
@@ -151,7 +152,7 @@ export function LegRow({
           ) : (
             <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[12px] text-muted">{summary}</span>
           )}
-          {shown !== "hidden" && (
+          {shown !== "hidden" && !short && (
             <a
               href={mapsUrl(leg, shown)}
               target="_blank"
@@ -211,11 +212,11 @@ export function RouteSheet({
   const option = (key: string, selected: boolean, icon: React.ReactNode, title: string, sub: string | null, onClick: (() => void) | null) => (
     <button
       type="button"
-      disabled={!onClick || !!busy}
+      disabled={(!onClick && !selected) || !!busy}
       onClick={onClick ?? undefined}
       aria-pressed={selected}
       className={`flex items-center gap-3 rounded-[12px] border bg-surface px-3.5 py-3 text-left transition-colors disabled:cursor-default ${
-        selected ? "border-ink border-2 px-[13px] py-[11px]" : "border-line hover:bg-ink/[.03]"
+        selected ? "cursor-default border-2 border-ink px-[13px] py-[11px]" : "border-line hover:bg-ink/[.03]"
       } ${!onClick && !selected ? "opacity-55" : ""}`}
     >
       <span className="flex w-[22px] flex-none justify-center">{icon}</span>
