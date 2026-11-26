@@ -45,10 +45,15 @@ const ll = (p?: { latLng: { latitude: number; longitude: number } }): LatLng | n
 
 export const googleEnabled = () => !!key();
 
-/** Walking time between two place names, plus where Google put them. null = a place wasn't found. */
-export async function googleWalk(from: string, to: string): Promise<{ minutes: number; meters: number; from: LatLng; to: LatLng } | null> {
+/** Walking or driving time between two place names, plus where Google put them. null = a place wasn't found. */
+export async function googleRoute(
+  from: string | LatLng,
+  to: string | LatLng,
+  mode: "WALK" | "DRIVE",
+): Promise<{ minutes: number; meters: number; from: LatLng; to: LatLng } | null> {
+  const wp = (p: string | LatLng) => (typeof p === "string" ? { address: p } : { location: { latLng: { latitude: p.lat, longitude: p.lng } } });
   const j = await call(
-    { origin: { address: from }, destination: { address: to }, travelMode: "WALK" },
+    { origin: wp(from), destination: wp(to), travelMode: mode },
     "routes.duration,routes.distanceMeters,routes.legs.startLocation,routes.legs.endLocation",
   );
   const r = j.routes?.[0];

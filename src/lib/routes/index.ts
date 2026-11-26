@@ -9,7 +9,7 @@
 // Every provider call is counted by `claim` (route_claim in the database: daily and monthly
 // caps per provider), on top of the providers' own limits.
 
-import { googleEnabled, googleTransit, googleWalk } from "./google";
+import { googleEnabled, googleRoute, googleTransit } from "./google";
 import { navitime } from "./navitime";
 import type { LatLng, LocalTime, Transit, TransitProvider } from "./types";
 
@@ -33,9 +33,15 @@ export const routesEnabled = googleEnabled;
 export type Walk = { minutes: number; meters: number; from: LatLng; to: LatLng };
 
 /** null = a place couldn't be found. */
-export async function walkBetween(fromPlace: string, toPlace: string, claim: Claim): Promise<Walk | null> {
+export async function walkBetween(fromPlace: string | LatLng, toPlace: string | LatLng, claim: Claim): Promise<Walk | null> {
   if (!(await claim("routes_google", CAPS.routes_google))) throw new CapReached();
-  return googleWalk(fromPlace, toPlace);
+  return googleRoute(fromPlace, toPlace, "WALK");
+}
+
+/** Driving time (rental car, taxi). Same cheap Google call as the walk; no train lookup. */
+export async function driveBetween(fromPlace: string | LatLng, toPlace: string | LatLng, claim: Claim): Promise<Walk | null> {
+  if (!(await claim("routes_google", CAPS.routes_google))) throw new CapReached();
+  return googleRoute(fromPlace, toPlace, "DRIVE");
 }
 
 /**

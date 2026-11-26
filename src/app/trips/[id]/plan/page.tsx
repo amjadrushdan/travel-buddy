@@ -33,6 +33,7 @@ export default async function PlanPage({
       items={items}
       titles={titles}
       legs={legs}
+      stays={stays.map((s) => ({ id: s.id, name: s.name, address: s.address, map_url: s.map_url, check_in: s.check_in, check_out: s.check_out, tz: s.tz, lat: s.lat, lng: s.lng }))}
       canRoute={me.role !== "viewer" && routesEnabled()}
       weather={weather}
       canEdit={me.role !== "viewer"}

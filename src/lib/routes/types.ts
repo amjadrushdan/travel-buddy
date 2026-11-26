@@ -41,6 +41,9 @@ export type SavedLeg = {
   to_lng: number | null;
   walk_min: number | null;
   walk_m: number | null;
+  /** Driving time, only looked up for legs marked car. */
+  drive_min: number | null;
+  drive_m: number | null;
   /** null with transit_at set: no train found. null without: not checked yet. */
   transit: Transit | null;
   transit_at: string | null;

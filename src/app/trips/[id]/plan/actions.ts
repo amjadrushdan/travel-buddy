@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getTrip } from "@/lib/data/trips";
 import { listStays } from "@/lib/data/travel";
 import { stayForDay } from "@/lib/stay-location";
-import { CapReached, routesEnabled, transitBetween, walkBetween, type Claim } from "@/lib/routes";
+import { CapReached, driveBetween, routesEnabled, transitBetween, walkBetween, type Claim } from "@/lib/routes";
 import { legMatches, needsWork, samePlace, wantsTransit } from "@/lib/routes/leg";
 import type { Choice, SavedLeg } from "@/lib/routes/types";
 import { LEG_COLUMNS } from "@/lib/data/itinerary";
@@ -179,7 +179,14 @@ export async function setDayTitle(tripId: string, day: string, title: string): P
 const ROUTES_PER_RUN = 15;
 
 type Stop = { id: string; day: string; start_time: string | null; place: string | null };
-type Ctx = { supabase: SupabaseClient; tripId: string; tz: (day: string) => string; address: (p: string) => string; claim: Claim };
+type Ctx = {
+  supabase: SupabaseClient;
+  tripId: string;
+  tz: (day: string) => string;
+  /** Where to route from/to: a stay's saved map point when the place is a stay, else the place name. */
+  point: (p: string) => string | { lat: number; lng: number };
+  claim: Claim;
+};
 
 async function routeCtx(tripId: string): Promise<Ctx | { error: string }> {
   if (!routesEnabled() || !process.env.FLIGHT_STATUS_SECRET) return { error: "Routes aren't set up on the server yet." };
@@ -193,8 +200,12 @@ async function routeCtx(tripId: string): Promise<Ctx | { error: string }> {
     supabase,
     tripId,
     tz: (day) => stayForDay(stays, day)?.tz ?? stays[0]?.tz ?? "UTC",
-    // "Matsuya Ginza" → "Matsuya Ginza, Japan", so Google picks the right one.
-    address: (p) => (where && !p.toLowerCase().includes(where.toLowerCase()) ? `${p}, ${where}` : p),
+    point: (p) => {
+      const stay = stays.find((s) => s.lat != null && s.lng != null && (samePlace(p, s.address) || samePlace(p, s.name)));
+      if (stay) return { lat: stay.lat!, lng: stay.lng! };
+      // "Matsuya Ginza" → "Matsuya Ginza, Japan", so Google picks the right one.
+      return where && !p.toLowerCase().includes(where.toLowerCase()) ? `${p}, ${where}` : p;
+    },
     claim: async (api, cap) => {
       const { data, error } = await supabase.rpc("route_claim", {
         p_secret: secret,
@@ -220,6 +231,8 @@ const emptyLeg = (a: Stop, b: Stop, choice: Choice = "auto"): SavedLeg => ({
   to_lng: null,
   walk_min: null,
   walk_m: null,
+  drive_min: null,
+  drive_m: null,
   transit: null,
   transit_at: null,
   provider: null,
@@ -230,9 +243,19 @@ const emptyLeg = (a: Stop, b: Stop, choice: Choice = "auto"): SavedLeg => ({
  * answer if one could matter. `force` asks again even for what's already saved.
  */
 async function fill(ctx: Ctx, leg: SavedLeg, a: Stop, b: Stop, force = false) {
+  if (leg.choice === "hidden") return;
+  // Car: Google's driving time only. No train lookup.
+  if (leg.choice === "car") {
+    if (!force && leg.drive_min != null) return;
+    const d = await driveBetween(ctx.point(a.place!), ctx.point(b.place!), ctx.claim);
+    leg.drive_min = d?.minutes ?? null;
+    leg.drive_m = d?.meters ?? null;
+    if (d && leg.from_lat == null) Object.assign(leg, { from_lat: d.from.lat, from_lng: d.from.lng, to_lat: d.to.lat, to_lng: d.to.lng });
+    return;
+  }
   // The walk call also gives the map points a train check needs.
   if (force || leg.walk_min == null || (leg.from_lat == null && leg.choice === "transit")) {
-    const w = await walkBetween(ctx.address(a.place!), ctx.address(b.place!), ctx.claim);
+    const w = await walkBetween(ctx.point(a.place!), ctx.point(b.place!), ctx.claim);
     leg.walk_min = w?.minutes ?? null;
     leg.walk_m = w?.meters ?? null;
     leg.from_lat = w?.from.lat ?? null;
@@ -268,9 +291,13 @@ async function saveLeg(ctx: Ctx, leg: SavedLeg) {
 
 export type RoutesResult = { error?: string; done?: number; upToDate?: boolean; more?: boolean; capped?: boolean };
 
-/** Add routes for this day's stops that don't have one yet (or need a train answer). */
-export async function addRoutes(tripId: string, day: string): Promise<RoutesResult> {
+/**
+ * Add routes for this day's stops that don't have one yet (or need a train answer).
+ * `by: "car"` is a driving day: every leg becomes car with Google's driving time, no trains.
+ */
+export async function addRoutes(tripId: string, day: string, by: "auto" | "car" = "auto"): Promise<RoutesResult> {
   if (!DATE_RE.test(day)) return { error: "Bad day." };
+  if (by !== "auto" && by !== "car") return { error: "Bad choice." };
   const ctx = await routeCtx(tripId);
   if ("error" in ctx) return ctx;
 
@@ -300,7 +327,11 @@ export async function addRoutes(tripId: string, day: string): Promise<RoutesResu
   const stale = list.filter((it) => saved.has(it.id) && !keep.has(it.id)).map((it) => it.id);
   if (stale.length) await ctx.supabase.from("route_legs").delete().in("to_item", stale);
 
-  const todo = wanted.filter(({ a, b }) => needsWork(saved.get(b.id), a, b));
+  const todo = wanted.filter(({ a, b }) => {
+    const l = saved.get(b.id);
+    if (by === "car") return !l || !legMatches(l, a, b) || l.choice !== "car" || l.drive_min == null;
+    return needsWork(l, a, b);
+  });
   if (!todo.length) {
     if (stale.length) revalidate(tripId);
     return { upToDate: true, done: 0 };
@@ -325,20 +356,23 @@ export async function addRoutes(tripId: string, day: string): Promise<RoutesResu
           to_lng: twin.to_lng,
           walk_min: twin.walk_min,
           walk_m: twin.walk_m,
+          drive_min: twin.drive_min,
+          drive_m: twin.drive_m,
           transit: twin.transit,
           transit_at: twin.transit_at,
           provider: twin.provider,
         });
       }
     }
+    if (by === "car") leg.choice = "car";
     try {
-      if (leg.choice !== "car" && leg.choice !== "hidden") await fill(ctx, leg, a, b);
+      await fill(ctx, leg, a, b);
     } catch (e) {
       if (!(e instanceof CapReached)) throw e;
       capped = true;
     }
     // Save even a half-filled leg (walk found, train capped): the next run finishes it.
-    if (!capped || leg.from_lat != null || leg.choice === "car" || leg.choice === "hidden") {
+    if (!capped || leg.from_lat != null || leg.choice === "hidden") {
       const err = await saveLeg(ctx, leg);
       if (err) return { error: err, done };
       done++;
@@ -379,7 +413,7 @@ export async function chooseRoute(tripId: string, toItem: string, choice: Choice
   const { leg, a, b } = found;
   leg.choice = choice;
   try {
-    if (choice === "walk" || choice === "transit") await fill(ctx, leg, a, b);
+    await fill(ctx, leg, a, b);
   } catch (e) {
     if (e instanceof CapReached) return { error: "Daily route limit reached. Try tomorrow." };
     throw e;

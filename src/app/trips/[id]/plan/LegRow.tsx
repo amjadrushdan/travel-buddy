@@ -25,6 +25,8 @@ function money(n: number, currency: string | null) {
   return currency ? `${currency} ${n.toLocaleString("en")}` : String(n);
 }
 
+/** 95 → "1 h 35 min". */
+const dur = (min: number) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ""}`);
 const km = (m: number | null) => (m == null ? null : m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`);
 const rides = (l: SavedLeg) => (l.transit?.steps ?? []).filter((s): s is RideStep => s.k === "ride");
 
@@ -86,7 +88,7 @@ export function LegRow({
   const summary =
     shown === "transit" ? (
       <>
-        <span className="font-semibold text-ink">{min} min</span>
+        <span className="font-semibold text-ink">{min != null ? dur(min) : ""}</span>
         {leg.transit?.fare != null && <span>· {money(leg.transit.fare, leg.transit.currency)}</span>}
         {leave && <span>· leave {leave}</span>}
       </>
@@ -94,17 +96,26 @@ export function LegRow({
       <>
         <Icon d={WALK} />
         <span>
-          Walk <span className="font-semibold text-ink">{min} min</span>
+          Walk <span className="font-semibold text-ink">{min != null ? dur(min) : ""}</span>
         </span>
         {leave && <span>· leave {leave}</span>}
       </>
     ) : shown === "car" ? (
       <>
         <Icon d={CAR} />
-        <span>Car or taxi</span>
+        {min != null ? (
+          <span>
+            Drive <span className="font-semibold text-ink">{dur(min)}</span>
+          </span>
+        ) : (
+          <span>Car or taxi</span>
+        )}
+        {leave && <span>· leave {leave}</span>}
       </>
     ) : shown === "hidden" ? (
       <span>Route hidden</span>
+    ) : shown === "far" ? (
+      <span>Too far to walk</span>
     ) : (
       <span>Route not found</span>
     );
@@ -207,6 +218,7 @@ export function RouteSheet({
   const r = rides(leg);
   const transitLeave = leaveBy(arrive, leg.transit?.minutes ?? null);
   const walkLeave = leaveBy(arrive, leg.walk_min);
+  const driveLeave = leaveBy(arrive, leg.drive_min);
   const trainChecked = !!leg.transit_at;
 
   const option = (key: string, selected: boolean, icon: React.ReactNode, title: string, sub: string | null, onClick: (() => void) | null) => (
@@ -248,7 +260,7 @@ export function RouteSheet({
               "transit",
               shown === "transit",
               r[0] ? <Badge r={r[0]} /> : null,
-              `Train · ${leg.transit.minutes} min`,
+              `Train · ${leg.transit.minutes != null ? dur(leg.transit.minutes) : ""}`,
               [
                 r.map((x) => `${x.line} ${x.min} min`).join(" → "),
                 leg.transit.fare != null ? money(leg.transit.fare, leg.transit.currency) : null,
@@ -264,19 +276,21 @@ export function RouteSheet({
 
         {option(
           "walk",
-          shown === "walk",
+          shown === "walk" || shown === "far",
           <Icon d={WALK} />,
-          leg.walk_min != null ? `Walk · ${leg.walk_min} min` : "Walk",
+          leg.walk_min != null ? `Walk · ${dur(leg.walk_min)}` : "Walk",
           leg.walk_min != null ? [km(leg.walk_m), walkLeave ? `leave ${walkLeave}` : null].filter(Boolean).join(" · ") : "Work out the walking time",
-          shown === "walk" ? null : () => choose("walk", "Showing the walk"),
+          shown === "walk" || shown === "far" ? null : () => choose("walk", "Showing the walk"),
         )}
 
         {option(
           "car",
           shown === "car",
           <Icon d={CAR} />,
-          "Car or taxi",
-          "No route, just a note on the timeline",
+          leg.drive_min != null ? `Car · ${dur(leg.drive_min)}` : "Car or taxi",
+          leg.drive_min != null
+            ? [km(leg.drive_m), driveLeave ? `leave ${driveLeave}` : null].filter(Boolean).join(" · ")
+            : "Rental car or taxi. Looks up the driving time",
           shown === "car" ? null : () => choose("car", "Marked as car or taxi"),
         )}
 

@@ -6,18 +6,22 @@ import type { SavedLeg } from "./types";
 /** Walks up to this long are shown as a walk without asking for trains. */
 export const WALK_MAX = 12;
 
-export type Shown = "walk" | "transit" | "car" | "hidden" | "none";
+/** Longer than this isn't a walk (Tokyo → Fuji): shown as "Too far to walk" unless a train helps. */
+export const WALK_FAR = 90;
+
+export type Shown = "walk" | "transit" | "car" | "hidden" | "far" | "none";
 
 export function shownAs(l: Pick<SavedLeg, "choice" | "walk_min" | "transit">): Shown {
   if (l.choice === "hidden" || l.choice === "car") return l.choice;
   const w = l.walk_min;
   const t = l.transit?.minutes ?? null;
+  const walk: Shown = w == null ? "none" : w > WALK_FAR ? "far" : "walk";
   if (l.choice === "transit" && l.transit) return "transit";
-  if (l.choice === "walk" || l.choice === "transit") return w != null ? "walk" : "none";
+  if (l.choice === "walk" || l.choice === "transit") return walk;
   // auto: a short walk, else the train if it's quicker, else the walk.
   if (w != null && w <= WALK_MAX) return "walk";
   if (l.transit && (w == null || t == null || t < w)) return "transit";
-  return w != null ? "walk" : "none";
+  return walk;
 }
 
 /** Auto mode would like a train answer it doesn't have yet. */
@@ -27,10 +31,11 @@ export function wantsTransit(l: Pick<SavedLeg, "choice" | "walk_min" | "transit_
   return l.choice === "auto" && l.walk_min != null && l.walk_min > WALK_MAX;
 }
 
-export function minutesShown(l: Pick<SavedLeg, "choice" | "walk_min" | "transit">): number | null {
+export function minutesShown(l: Pick<SavedLeg, "choice" | "walk_min" | "transit" | "drive_min">): number | null {
   const s = shownAs(l);
   if (s === "walk") return l.walk_min;
   if (s === "transit") return l.transit?.minutes ?? null;
+  if (s === "car") return l.drive_min;
   return null;
 }
 

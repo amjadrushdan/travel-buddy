@@ -7,6 +7,7 @@ import { EscClose } from "@/components/ui";
 import { mapLink, nowIndex, type ItineraryItem } from "@/lib/itinerary";
 import { weatherLabel, type DayWeather } from "@/lib/weather";
 import { needsWork, samePlace } from "@/lib/routes/leg";
+import { stayForDay } from "@/lib/stay-location";
 import type { SavedLeg } from "@/lib/routes/types";
 import { addRoutes, deleteItem, reorderDay, saveItem, setDayTitle } from "./actions";
 import { LegRow, RouteSheet } from "./LegRow";
@@ -21,6 +22,8 @@ type Props = {
   titles: Record<string, string>;
   weather: Record<string, DayWeather>;
   legs: SavedLeg[];
+  /** For the place picker in Add/Edit. */
+  stays: PickStay[];
   /** Editor, and the server has route keys. */
   canRoute: boolean;
   canEdit: boolean;
@@ -28,8 +31,9 @@ type Props = {
 };
 
 type Sheet = { mode: "new" } | { mode: "edit"; item: ItineraryItem } | null;
+type PickStay = { id: string; name: string; address: string | null; map_url: string | null; check_in: string; check_out: string; tz: string; lat: number | null; lng: number | null };
 
-export function PlanView({ tripId, tripName, days, items, titles, weather, legs, canRoute, canEdit, requestedDay }: Props) {
+export function PlanView({ tripId, tripName, days, items, titles, weather, legs, stays, canRoute, canEdit, requestedDay }: Props) {
   const [titleSheet, setTitleSheet] = useState(false);
   const [day, setDay] = useState<string | null>(requestedDay ?? days[0] ?? null);
   const [now, setNow] = useState<{ date: string; time: string } | null>(null);
@@ -41,6 +45,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
   const [routing, startRouting] = useTransition();
   const legFor = useMemo(() => new Map(legs.map((l) => [l.to_item, l])), [legs]);
   const [routeSheet, setRouteSheet] = useState<string | null>(null); // to_item of the open leg
+  const [addSheet, setAddSheet] = useState(false);
   const chipsRef = useRef<HTMLDivElement>(null);
 
   // Device clock, read after mount so server and browser render the same HTML first.
@@ -94,11 +99,12 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
     return a?.place && b.place && !samePlace(a.place, b.place) && needsWork(legFor.get(b.id), a, b);
   }).length;
 
-  function routes() {
+  function routes(by: "auto" | "car") {
     if (!day) return;
     const d = day;
+    setAddSheet(false);
     startRouting(async () => {
-      const res = await addRoutes(tripId, d).catch(() => ({ error: "Couldn't add routes. Are you offline?" }) as const);
+      const res = await addRoutes(tripId, d, by).catch(() => ({ error: "Couldn't add routes. Are you offline?" }) as const);
       if ("error" in res && res.error) return setToast(res.error);
       if ("upToDate" in res && res.upToDate) return setToast("Routes are up to date");
       const n = "done" in res ? (res.done ?? 0) : 0;
@@ -142,7 +148,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
             Add to plan
           </button>
         )}
-        {sheet && <ItemSheet tripId={tripId} sheet={sheet} defaultDay={now?.date ?? ""} onClose={() => setSheet(null)} onDone={setToast} />}
+        {sheet && <ItemSheet tripId={tripId} stays={stays} sheet={sheet} defaultDay={now?.date ?? ""} onClose={() => setSheet(null)} onDone={setToast} />}
         {toast && <Toast text={toast} />}
       </main>
     );
@@ -238,7 +244,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
               {canRoute && !reorder && missingRoutes > 0 && (
                 <button
                   type="button"
-                  onClick={routes}
+                  onClick={() => setAddSheet(true)}
                   disabled={routing}
                   aria-busy={routing}
                   className="rounded-sm border border-line bg-surface px-3 py-[7px] text-[13px] font-semibold disabled:text-muted"
@@ -377,11 +383,12 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
       </div>
 
       {sheet && (
-        <ItemSheet tripId={tripId} sheet={sheet} defaultDay={day ?? ""} onClose={() => setSheet(null)} onDone={setToast} />
+        <ItemSheet tripId={tripId} stays={stays} sheet={sheet} defaultDay={day ?? ""} onClose={() => setSheet(null)} onDone={setToast} />
       )}
       {titleSheet && day && (
         <DayTitleSheet tripId={tripId} day={day} current={titles[day] ?? ""} onClose={() => setTitleSheet(false)} onDone={setToast} />
       )}
+      {addSheet && day && <AddRoutesSheet count={missingRoutes} onPick={routes} onClose={() => setAddSheet(false)} />}
       {routeSheet &&
         (() => {
           const leg = legFor.get(routeSheet);
@@ -402,6 +409,39 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
         })()}
       {toast && <Toast text={toast} />}
     </main>
+  );
+}
+
+/** How the group gets around this day, before any route is looked up. */
+function AddRoutesSheet({ count, onPick, onClose }: { count: number; onPick: (by: "auto" | "car") => void; onClose: () => void }) {
+  const option = (by: "auto" | "car", title: string, sub: string) => (
+    <button
+      type="button"
+      onClick={() => onPick(by)}
+      className="flex flex-col gap-0.5 rounded-[12px] border border-line bg-surface px-4 py-3.5 text-left transition-colors hover:bg-ink/[.03]"
+    >
+      <span className="text-[15px] font-semibold">{title}</span>
+      <span className="text-[13px] text-muted">{sub}</span>
+    </button>
+  );
+  return (
+    <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/35 lg:items-center lg:p-6" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-label="Add routes"
+        onClick={(e) => e.stopPropagation()}
+        className="flex w-full max-w-[480px] flex-col gap-2.5 rounded-t-[22px] bg-bg px-5 pt-5 pb-[max(28px,env(safe-area-inset-bottom))] lg:max-w-[520px] lg:rounded-[22px] lg:pb-6 lg:shadow-[0_24px_60px_rgba(0,0,0,.25)]"
+      >
+        <div className="mx-auto h-1 w-10 rounded-full bg-line lg:hidden" />
+        <EscClose onClose={onClose} />
+        <span className="text-xl font-bold">How are you getting around?</span>
+        <span className="-mt-1.5 mb-1 text-sm text-muted">
+          {count} {count === 1 ? "stop needs" : "stops need"} a route. You can change any of them later.
+        </span>
+        {option("auto", "Walk and train", "Walks between nearby stops, trains when it's far")}
+        {option("car", "By car", "Rental car or taxi: driving times only")}
+      </div>
+    </div>
   );
 }
 
@@ -515,12 +555,14 @@ function Toast({ text }: { text: string }) {
 
 function ItemSheet({
   tripId,
+  stays,
   sheet,
   defaultDay,
   onClose,
   onDone,
 }: {
   tripId: string;
+  stays: PickStay[];
   sheet: NonNullable<Sheet>;
   defaultDay: string;
   onClose: () => void;
@@ -530,6 +572,19 @@ function ItemSheet({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, start] = useTransition();
+  const placeRef = useRef<HTMLInputElement>(null);
+  const mapRef = useRef<HTMLInputElement>(null);
+  const [pickDay, setPickDay] = useState(item?.day ?? defaultDay);
+  // The night's stay first, then the rest in date order.
+  const stayList = useMemo(() => {
+    const tonight = stayForDay(stays, pickDay);
+    return tonight ? [tonight, ...stays.filter((s) => s.id !== tonight.id)] : stays;
+  }, [stays, pickDay]);
+
+  function pickStay(s: PickStay) {
+    if (placeRef.current) placeRef.current.value = s.address || s.name;
+    if (mapRef.current && s.map_url) mapRef.current.value = s.map_url;
+  }
 
   function submit(formData: FormData) {
     setError(null);
@@ -583,20 +638,44 @@ function ItemSheet({
         <div className="grid grid-cols-[1.4fr_1fr] gap-2.5">
           <label className="flex min-w-0 flex-col gap-1.5">
             <span className="text-xs text-muted">Day</span>
-            <input name="day" type="date" required defaultValue={item?.day ?? defaultDay} className={`${input} min-w-0 font-mono`} />
+            <input
+              name="day"
+              type="date"
+              required
+              defaultValue={item?.day ?? defaultDay}
+              onChange={(e) => setPickDay(e.target.value)}
+              className={`${input} min-w-0 font-mono`}
+            />
           </label>
           <label className="flex min-w-0 flex-col gap-1.5">
             <span className="text-xs text-muted">Time (optional)</span>
             <input name="start_time" type="time" defaultValue={shortTime(item?.start_time ?? null)} className={`${input} min-w-0 font-mono`} />
           </label>
         </div>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted">Place (optional)</span>
-          <input name="place" maxLength={200} defaultValue={item?.place ?? ""} placeholder="Senso-ji, Asakusa" className={input} />
-        </label>
+        <div className="flex flex-col gap-1.5">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted">Place (optional)</span>
+            <input ref={placeRef} name="place" maxLength={200} defaultValue={item?.place ?? ""} placeholder="Senso-ji, Asakusa" className={input} />
+          </label>
+          {stayList.length > 0 && (
+            <div className="no-scrollbar -mx-5 flex gap-1.5 overflow-x-auto px-5" aria-label="Use a stay as the place">
+              {stayList.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => pickStay(s)}
+                  className="flex flex-none items-center gap-1 rounded-full border border-line bg-surface py-1.5 pr-3 pl-2 text-[12px] font-semibold"
+                >
+                  <span aria-hidden>🏠</span>
+                  <span className="max-w-[180px] truncate">{s.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <label className="flex flex-col gap-1.5">
           <span className="text-xs text-muted">Google Maps link (optional, otherwise we search the place)</span>
-          <input name="map_url" type="url" maxLength={2000} defaultValue={item?.map_url ?? ""} placeholder="https://maps.app.goo.gl/…" className={input} />
+          <input ref={mapRef} name="map_url" type="url" maxLength={2000} defaultValue={item?.map_url ?? ""} placeholder="https://maps.app.goo.gl/…" className={input} />
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-xs text-muted">Notes (optional)</span>
