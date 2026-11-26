@@ -1,6 +1,7 @@
 // Which way of getting there a saved leg shows, and when to leave. Pure: used by the server
 // (to decide whether a train check is worth an API call) and by the app (to draw the leg).
 
+import { matchStay, moved, type StayPoint } from "./stay-match";
 import type { SavedLeg } from "./types";
 
 /** Walks up to this long are shown as a walk without asking for trains. */
@@ -67,7 +68,22 @@ export function needsWork(
   l: SavedLeg | undefined,
   from: { id: string; place: string | null },
   to: { place: string | null },
+  stays: StayPoint[] = [],
 ): boolean {
-  if (!l || !legMatches(l, from, to)) return true;
+  if (!l || !legMatches(l, from, to) || stayMoved(l, from, to, stays)) return true;
   return wantsTransit(l) && l.from_lat != null;
+}
+
+/** A stop is a stay whose map point has changed since this leg was worked out (stay edited). */
+export function stayMoved(
+  l: Pick<SavedLeg, "from_lat" | "from_lng" | "to_lat" | "to_lng">,
+  from: { place: string | null },
+  to: { place: string | null },
+  stays: StayPoint[],
+): boolean {
+  const check = (place: string | null, lat: number | null, lng: number | null) => {
+    const s = matchStay(place, stays);
+    return !!s && lat != null && lng != null && moved({ lat, lng }, { lat: s.lat!, lng: s.lng! });
+  };
+  return check(from.place, l.from_lat, l.from_lng) || check(to.place, l.to_lat, l.to_lng);
 }

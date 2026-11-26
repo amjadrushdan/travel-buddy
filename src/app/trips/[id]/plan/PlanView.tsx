@@ -96,7 +96,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
   // Stops on this day that still need a route (the Add routes button only shows then).
   const missingRoutes = dayItems.filter((b, k) => {
     const a = dayItems[k - 1];
-    return a?.place && b.place && !samePlace(a.place, b.place) && needsWork(legFor.get(b.id), a, b);
+    return a?.place && b.place && !samePlace(a.place, b.place) && needsWork(legFor.get(b.id), a, b, stays);
   }).length;
 
   function routes(by: "auto" | "car") {

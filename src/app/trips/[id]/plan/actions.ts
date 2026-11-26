@@ -7,7 +7,8 @@ import { listStays } from "@/lib/data/travel";
 import { stayForDay } from "@/lib/stay-location";
 import { CapReached, driveBetween, findPlace, routesEnabled, transitBetween, walkBetween, type Claim } from "@/lib/routes";
 import { pointFromMapLink } from "@/lib/routes/maplink";
-import { legMatches, needsWork, samePlace, wantsTransit } from "@/lib/routes/leg";
+import { legMatches, needsWork, samePlace, stayMoved, wantsTransit } from "@/lib/routes/leg";
+import { matchStay } from "@/lib/routes/stay-match";
 import type { Choice, SavedLeg } from "@/lib/routes/types";
 import { LEG_COLUMNS } from "@/lib/data/itinerary";
 
@@ -220,7 +221,7 @@ async function routeCtx(tripId: string): Promise<Ctx | { error: string }> {
    */
   async function locate(stop: Stop, force = false): Promise<Point | string> {
     const p = stop.place!;
-    const stay = stays.find((s) => s.lat != null && s.lng != null && (samePlace(p, s.address) || samePlace(p, s.name)));
+    const stay = matchStay(p, stays);
     if (stay) return { lat: stay.lat!, lng: stay.lng! };
     const named = where && !p.toLowerCase().includes(where.toLowerCase()) ? `${p}, ${where}` : p;
 
@@ -365,10 +366,11 @@ export async function addRoutes(tripId: string, day: string, by: "auto" | "car" 
   const stale = list.filter((it) => saved.has(it.id) && !keep.has(it.id)).map((it) => it.id);
   if (stale.length) await ctx.supabase.from("route_legs").delete().in("to_item", stale);
 
+  const stays = await listStays(tripId);
   const todo = wanted.filter(({ a, b }) => {
     const l = saved.get(b.id);
-    if (by === "car") return !l || !legMatches(l, a, b) || l.choice !== "car" || l.drive_min == null;
-    return needsWork(l, a, b);
+    if (by === "car") return !l || !legMatches(l, a, b) || l.choice !== "car" || l.drive_min == null || stayMoved(l, a, b, stays);
+    return needsWork(l, a, b, stays);
   });
   if (!todo.length) {
     if (stale.length) revalidate(tripId);
@@ -380,12 +382,14 @@ export async function addRoutes(tripId: string, day: string, by: "auto" | "car" 
   for (const { a, b } of todo.slice(0, ROUTES_PER_RUN)) {
     const old = saved.get(b.id);
     let leg: SavedLeg;
-    if (old && legMatches(old, a, b)) {
+    if (old && legMatches(old, a, b) && !stayMoved(old, a, b, stays)) {
       leg = { ...old }; // same stops, only the train answer is missing
     } else {
       leg = emptyLeg(a, b, old?.choice); // keep the editor's choice for this link
       // The same two places elsewhere in the trip: reuse that answer, no API call.
-      const twin = all.find((l) => samePlace(l.from_place, a.place) && samePlace(l.to_place, b.place) && l.from_lat != null);
+      const twin = all.find(
+        (l) => samePlace(l.from_place, a.place) && samePlace(l.to_place, b.place) && l.from_lat != null && !stayMoved(l, a, b, stays),
+      );
       if (twin) {
         Object.assign(leg, {
           from_lat: twin.from_lat,
@@ -426,10 +430,10 @@ export async function addRoutes(tripId: string, day: string, by: "auto" | "car" 
 async function loadLeg(ctx: Ctx, toItem: string) {
   const { data: leg } = await ctx.supabase
     .from("route_legs")
-    .select(LEG_COLUMNS)
+    .select(`${LEG_COLUMNS}, computed_at`)
     .eq("trip_id", ctx.tripId)
     .eq("to_item", toItem)
-    .maybeSingle<SavedLeg>();
+    .maybeSingle<SavedLeg & { computed_at: string }>();
   if (!leg) return null;
   const { data: stops } = await ctx.supabase
     .from("itinerary_items")
@@ -466,11 +470,19 @@ export async function chooseRoute(tripId: string, toItem: string, choice: Choice
 }
 
 /** Ask the providers again for one leg (times looked wrong, or a place was fixed). */
+/** One refresh per route per few minutes, so tapping ↻ repeatedly can't use up the day's lookups. */
+const REFRESH_COOLDOWN_MIN = 5;
+
 export async function recheckRoute(tripId: string, toItem: string): Promise<{ error?: string }> {
   const ctx = await routeCtx(tripId);
   if ("error" in ctx) return ctx;
   const found = await loadLeg(ctx, toItem);
   if (!found) return { error: "That route no longer exists. Tap Add routes." };
+  const age = (Date.now() - Date.parse(found.leg.computed_at)) / 60_000;
+  if (age < REFRESH_COOLDOWN_MIN) {
+    const wait = Math.max(1, Math.ceil(REFRESH_COOLDOWN_MIN - age));
+    return { error: `Just updated. You can refresh it again in ${wait} min.` };
+  }
   try {
     await fill(ctx, found.leg, found.a, found.b, true);
   } catch (e) {

@@ -9,15 +9,20 @@ import { chooseRoute, recheckRoute } from "./actions";
 
 const GRID = "grid grid-cols-[48px_14px_1fr] gap-2.5";
 const SHORT_WALK = 10;
-const PILL =
-  "flex h-7 items-center rounded-full border border-line bg-surface px-3 text-[12px] font-semibold text-ink transition-colors hover:bg-ink/[.03] active:bg-bg";
+/** The whole summary is one soft strip you tap: no row of small buttons on every route. */
+const STRIP =
+  "flex w-full min-w-0 items-center gap-x-1.5 rounded-[10px] bg-ink/[.045] px-2.5 py-[7px] text-left text-[12px] text-muted transition-colors hover:bg-ink/[.07] active:bg-ink/[.09]";
 
-/** Google Maps directions between the two stops, for live times on the day. */
+/**
+ * Google Maps directions between the two stops, for live times on the day. Uses the exact map
+ * points the route was worked out from, so Maps shows the same path (names can be misread).
+ */
 function mapsUrl(leg: SavedLeg, mode: string) {
+  const pt = (lat: number | null, lng: number | null, name: string) => (lat != null && lng != null ? `${lat},${lng}` : name);
   const q = new URLSearchParams({
     api: "1",
-    origin: leg.from_place,
-    destination: leg.to_place,
+    origin: pt(leg.from_lat, leg.from_lng, leg.from_place),
+    destination: pt(leg.to_lat, leg.to_lng, leg.to_place),
     travelmode: mode === "walk" ? "walking" : mode === "car" ? "driving" : "transit",
   });
   return `https://www.google.com/maps/dir/?${q}`;
@@ -56,6 +61,14 @@ function Icon({ d }: { d: string }) {
 }
 const WALK = "M13 4.5a1.5 1.5 0 1 0 0-.01M7 21l3-4M16 21l-2-4-3-3 1-6M6 12l2-3 4-1 3 3 3 1";
 const CAR = "M5 17h14M6 17v2M18 17v2M4 13l2-6h12l2 6v4H4zM7.5 14h.01M16.5 14h.01";
+
+function Chevron() {
+  return (
+    <svg className="ml-auto flex-none text-ink" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
 
 function Badge({ r }: { r: RideStep }) {
   return (
@@ -177,22 +190,18 @@ export function LegRow({
       <div className={GRID}>
         <span />
         <Dots />
-        <div className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 ${shown === "hidden" ? "py-0.5" : "py-1.5"}`}>
-          {/* One line; when the buttons don't fit beside it they drop below, right-aligned. */}
-          <span className="flex items-center gap-x-1.5 text-[12px] whitespace-nowrap text-muted">{summary}</span>
-          {/* Pills, not a small arrow: easy to hit on a phone. */}
-          <span className="ml-auto flex flex-none items-center gap-1.5">
-            {shown !== "hidden" && !short && (
-              <a href={mapsUrl(leg, shown)} target="_blank" rel="noopener noreferrer" className={PILL}>
-                Maps
-              </a>
-            )}
-            {canEdit && (
-              <button type="button" onClick={onOpen} aria-label="Change how to get there" className={PILL}>
-                Change
-              </button>
-            )}
-          </span>
+        <div className={shown === "hidden" ? "py-0.5" : "py-1"}>
+          {canEdit ? (
+            <button type="button" onClick={onOpen} aria-label="Getting there: change, refresh or open in Maps" className={STRIP}>
+              <span className="flex min-w-0 flex-wrap items-center gap-x-1.5">{summary}</span>
+              <Chevron />
+            </button>
+          ) : shown !== "hidden" ? (
+            <a href={mapsUrl(leg, shown)} target="_blank" rel="noopener noreferrer" className={STRIP}>
+              <span className="flex min-w-0 flex-wrap items-center gap-x-1.5">{summary}</span>
+              <span className="ml-auto flex-none text-[11px] font-semibold text-ink">Maps</span>
+            </a>
+          ) : null}
         </div>
       </div>
     </li>
@@ -270,10 +279,38 @@ export function RouteSheet({
       >
         <div className="mx-auto h-1 w-10 rounded-full bg-line lg:hidden" />
         <EscClose onClose={onClose} />
-        <span className="text-xs text-muted">Getting there{leg.choice === "auto" && shown !== "none" ? " · picked automatically" : ""}</span>
-        <span className="-mt-1 mb-1 text-[17px] leading-snug font-semibold text-pretty">
-          {fromTitle} → {toTitle}
-        </span>
+        <div className="mb-1 flex items-start gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-xs text-muted">Getting there{leg.choice === "auto" && shown !== "none" ? " · picked automatically" : ""}</span>
+            <span className="text-[17px] leading-snug font-semibold text-pretty">
+              {fromTitle} → {toTitle}
+            </span>
+          </div>
+          {/* Look both stops up again and redo the route (after a stay or place was fixed). */}
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() => run("recheck", () => recheckRoute(tripId, leg.to_item), "Route refreshed")}
+            aria-label="Refresh this route"
+            title="Refresh this route"
+            className="flex size-10 flex-none items-center justify-center rounded-full border border-line bg-surface text-ink transition-colors hover:bg-ink/[.03] disabled:text-muted"
+          >
+            <svg
+              className={busy === "recheck" ? "animate-spin" : ""}
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" />
+            </svg>
+          </button>
+        </div>
 
         {leg.transit
           ? option(
@@ -322,7 +359,17 @@ export function RouteSheet({
           </p>
         )}
 
-        <div className="mt-1 flex items-center justify-between gap-3 text-[13px]">
+        {shown !== "hidden" && (
+          <a
+            href={mapsUrl(leg, shown)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 flex items-center justify-center gap-2 rounded-sm bg-ink p-3.5 text-[15px] font-semibold text-white"
+          >
+            Open in Google Maps
+          </a>
+        )}
+        <div className="mt-1 flex items-center justify-center gap-6 text-[13px]">
           {shown === "hidden" ? (
             <button type="button" disabled={!!busy} onClick={() => choose("auto", "Route shown")} className="font-semibold">
               Show route
@@ -337,17 +384,6 @@ export function RouteSheet({
               Automatic
             </button>
           )}
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() => run("recheck", () => recheckRoute(tripId, leg.to_item), "Route checked again")}
-            className="text-muted"
-          >
-            {busy === "recheck" ? "Checking…" : "Check again"}
-          </button>
-          <a href={mapsUrl(leg, shown)} target="_blank" rel="noopener noreferrer" className="font-semibold">
-            Open in Maps
-          </a>
         </div>
       </div>
     </div>
