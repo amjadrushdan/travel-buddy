@@ -177,10 +177,11 @@ export function LegRow({
       <div className={GRID}>
         <span />
         <Dots />
-        <div className={`flex min-w-0 items-center gap-2 ${shown === "hidden" ? "py-0.5" : "py-1.5"}`}>
-          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-[12px] text-muted">{summary}</span>
+        <div className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 ${shown === "hidden" ? "py-0.5" : "py-1.5"}`}>
+          {/* One line; when the buttons don't fit beside it they drop below, right-aligned. */}
+          <span className="flex items-center gap-x-1.5 text-[12px] whitespace-nowrap text-muted">{summary}</span>
           {/* Pills, not a small arrow: easy to hit on a phone. */}
-          <span className="flex flex-none items-center gap-1.5">
+          <span className="ml-auto flex flex-none items-center gap-1.5">
             {shown !== "hidden" && !short && (
               <a href={mapsUrl(leg, shown)} target="_blank" rel="noopener noreferrer" className={PILL}>
                 Maps
