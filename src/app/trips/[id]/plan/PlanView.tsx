@@ -455,22 +455,27 @@ function AddRoutesSheet({ count, onPick, onClose }: { count: number; onPick: (by
 }
 
 /** "☁️ Cloudy · 4° / 11° · rain 20%" (snow amount when it snows). */
-/** "Transport ¥1,240 each · ¥3,200 tolls" under the day title. Nothing when the day has no costs. */
+/** "🚆 ¥1,240 each  🚗 ¥3,200 tolls" under the day title. Nothing when the day has no costs. */
 function SpendLine({ s }: { s: DaySpend }) {
   const list = (r: Record<string, number>) => Object.entries(r).map(([c, n]) => money(n, c || null));
   const fares = list(s.fares);
   const tolls = list(s.tolls);
   if (!fares.length && !tolls.length) return null;
-  const parts = [
-    fares.length ? `${s.unknown ? "from " : ""}${fares.join(" + ")} each` : null,
-    tolls.length ? `${tolls.join(" + ")} tolls` : null,
-  ].filter(Boolean);
   return (
-    <span className="flex items-center gap-1.5 text-[13px] text-muted">
-      <span aria-hidden>🚆</span>
-      <span>
-        Transport <span className="font-medium text-ink tabular-nums">{parts.join(" · ")}</span>
-      </span>
+    <span className="flex flex-wrap items-center gap-x-3 text-[13px] text-muted tabular-nums" aria-label="Transport costs">
+      {fares.length > 0 && (
+        <span className="whitespace-nowrap">
+          <span aria-hidden>🚆 </span>
+          {s.unknown ? "from " : ""}
+          <span className="font-medium text-ink">{fares.join(" + ")}</span> each
+        </span>
+      )}
+      {tolls.length > 0 && (
+        <span className="whitespace-nowrap">
+          <span aria-hidden>🚗 </span>
+          <span className="font-medium text-ink">{tolls.join(" + ")}</span> tolls
+        </span>
+      )}
     </span>
   );
 }
