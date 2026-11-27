@@ -87,3 +87,28 @@ export function stayMoved(
   };
   return check(from.place, l.from_lat, l.from_lng) || check(to.place, l.to_lat, l.to_lng);
 }
+
+export type DaySpend = { fares: Record<string, number>; tolls: Record<string, number>; unknown: number };
+
+/**
+ * What the day's shown routes cost: train fares (per person) and road tolls (per car), by
+ * currency. A train leg with no fare counts as unknown, so the total can say it's at least that.
+ */
+export function daySpend(legs: Pick<SavedLeg, "choice" | "walk_min" | "transit" | "toll" | "toll_currency">[]): DaySpend {
+  const out: DaySpend = { fares: {}, tolls: {}, unknown: 0 };
+  for (const l of legs) {
+    const s = shownAs(l);
+    if (s === "transit") {
+      const f = l.transit?.fare;
+      if (f == null) out.unknown++;
+      else if (f > 0) {
+        const c = l.transit?.currency ?? "";
+        out.fares[c] = (out.fares[c] ?? 0) + f;
+      }
+    } else if (s === "car" && l.toll) {
+      const c = l.toll_currency ?? "";
+      out.tolls[c] = (out.tolls[c] ?? 0) + l.toll;
+    }
+  }
+  return out;
+}

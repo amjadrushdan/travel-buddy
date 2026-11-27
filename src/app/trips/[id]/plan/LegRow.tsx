@@ -28,7 +28,7 @@ function mapsUrl(leg: SavedLeg, mode: string) {
   return `https://www.google.com/maps/dir/?${q}`;
 }
 
-function money(n: number, currency: string | null) {
+export function money(n: number, currency: string | null) {
   if (currency === "JPY") return `¥${n.toLocaleString("en")}`;
   return currency ? `${currency} ${n.toLocaleString("en")}` : String(n);
 }

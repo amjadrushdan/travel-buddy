@@ -6,11 +6,11 @@ import { LinkedText } from "@/components/LinkedText";
 import { EscClose } from "@/components/ui";
 import { mapLink, nowIndex, type ItineraryItem } from "@/lib/itinerary";
 import { weatherLabel, type DayWeather } from "@/lib/weather";
-import { needsWork, samePlace } from "@/lib/routes/leg";
+import { daySpend, needsWork, samePlace, type DaySpend } from "@/lib/routes/leg";
 import { stayForDay } from "@/lib/stay-location";
 import type { SavedLeg } from "@/lib/routes/types";
 import { addRoutes, deleteItem, reorderDay, saveItem, setDayTitle } from "./actions";
-import { LegRow, RouteSheet } from "./LegRow";
+import { LegRow, RouteSheet, money } from "./LegRow";
 
 const input = "w-full rounded-sm border border-line bg-surface p-3 text-base outline-none focus:border-ink";
 
@@ -98,6 +98,14 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
     const a = dayItems[k - 1];
     return a?.place && b.place && !samePlace(a.place, b.place) && needsWork(legFor.get(b.id), a, b, stays);
   }).length;
+  // What the day's routes cost, from the legs drawn on the timeline.
+  const spend = daySpend(
+    dayItems.flatMap((b, k) => {
+      const a = dayItems[k - 1];
+      const l = legFor.get(b.id);
+      return a && l && l.from_item === a.id && l.from_place === a.place && l.to_place === b.place ? [l] : [];
+    }),
+  );
 
   function routes(by: "auto" | "car") {
     if (!day) return;
@@ -238,6 +246,7 @@ export function PlanView({ tripId, tripName, days, items, titles, weather, legs,
               </span>
             )}
             {weather[day] && <WeatherLine w={weather[day]} />}
+            <SpendLine s={spend} />
             {canRoute && !reorder && (missingRoutes > 0 || routing) && (
               <button
                 type="button"
@@ -446,6 +455,26 @@ function AddRoutesSheet({ count, onPick, onClose }: { count: number; onPick: (by
 }
 
 /** "☁️ Cloudy · 4° / 11° · rain 20%" (snow amount when it snows). */
+/** "Transport ¥1,240 each · ¥3,200 tolls" under the day title. Nothing when the day has no costs. */
+function SpendLine({ s }: { s: DaySpend }) {
+  const list = (r: Record<string, number>) => Object.entries(r).map(([c, n]) => money(n, c || null));
+  const fares = list(s.fares);
+  const tolls = list(s.tolls);
+  if (!fares.length && !tolls.length) return null;
+  const parts = [
+    fares.length ? `${s.unknown ? "from " : ""}${fares.join(" + ")} each` : null,
+    tolls.length ? `${tolls.join(" + ")} tolls` : null,
+  ].filter(Boolean);
+  return (
+    <span className="flex items-center gap-1.5 text-[13px] text-muted">
+      <span aria-hidden>🚆</span>
+      <span>
+        Transport <span className="font-medium text-ink tabular-nums">{parts.join(" · ")}</span>
+      </span>
+    </span>
+  );
+}
+
 function WeatherLine({ w }: { w: DayWeather }) {
   const { icon, label } = weatherLabel(w.code);
   const extra =
