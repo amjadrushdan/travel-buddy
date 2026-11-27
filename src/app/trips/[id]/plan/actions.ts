@@ -7,7 +7,7 @@ import { listStays } from "@/lib/data/travel";
 import { stayForDay } from "@/lib/stay-location";
 import { CapReached, driveBetween, findPlace, routesEnabled, transitBetween, walkBetween, type Claim } from "@/lib/routes";
 import { pointFromMapLink } from "@/lib/routes/maplink";
-import { legMatches, needsWork, samePlace, stayMoved, wantsTransit } from "@/lib/routes/leg";
+import { bothAirports, isFlight, legMatches, needsWork, samePlace, stayMoved, wantsTransit } from "@/lib/routes/leg";
 import { matchStay } from "@/lib/routes/stay-match";
 import type { Choice, SavedLeg } from "@/lib/routes/types";
 import { LEG_COLUMNS } from "@/lib/data/itinerary";
@@ -281,6 +281,18 @@ const emptyLeg = (a: Stop, b: Stop, choice: Choice = "auto"): SavedLeg => ({
  */
 async function fill(ctx: Ctx, leg: SavedLeg, a: Stop, b: Stop, force = false) {
   if (leg.choice === "hidden") return;
+  // Airport to a far airport is a flight: keep the two points (free: stay, cache or one place
+  // search) and look up nothing else, so no 15-hour ferry drive.
+  if (bothAirports(a.place, b.place)) {
+    const [pa, pb] = [await ctx.locate(a, force), await ctx.locate(b, force)];
+    if (typeof pa !== "string" && typeof pb !== "string") {
+      const ends = { from_lat: pa.lat, from_lng: pa.lng, to_lat: pb.lat, to_lng: pb.lng };
+      if (isFlight({ ...ends, from_place: a.place ?? "", to_place: b.place ?? "" })) {
+        Object.assign(leg, ends, { walk_min: null, walk_m: null, drive_min: null, drive_m: null, toll: null, toll_currency: null, transit: null, transit_at: null, provider: null });
+        return;
+      }
+    }
+  }
   // Car: Google's driving time only. No train lookup.
   if (leg.choice === "car") {
     if (!force && leg.drive_min != null) return;

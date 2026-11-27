@@ -61,6 +61,7 @@ function Icon({ d }: { d: string }) {
 }
 const WALK = "M13 4.5a1.5 1.5 0 1 0 0-.01M7 21l3-4M16 21l-2-4-3-3 1-6M6 12l2-3 4-1 3 3 3 1";
 const CAR = "M5 17h14M6 17v2M18 17v2M4 13l2-6h12l2 6v4H4zM7.5 14h.01M16.5 14h.01";
+const PLANE = "M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z";
 
 function Chevron() {
   return (
@@ -135,6 +136,11 @@ export function LegRow({
         {!!leg.toll && <span>· {money(leg.toll, leg.toll_currency)} toll</span>}
         {leave && <span>· leave {leave}</span>}
       </>
+    ) : shown === "flight" ? (
+      <>
+        <Icon d={PLANE} />
+        <span className="font-semibold text-ink">Flight</span>
+      </>
     ) : shown === "hidden" ? (
       <span>Route hidden</span>
     ) : shown === "far" ? (
@@ -196,6 +202,10 @@ export function LegRow({
               <span className="flex min-w-0 flex-wrap items-center gap-x-1.5">{summary}</span>
               <Chevron />
             </button>
+          ) : shown === "flight" ? (
+            <span className={STRIP}>
+              <span className="flex min-w-0 flex-wrap items-center gap-x-1.5">{summary}</span>
+            </span>
           ) : shown !== "hidden" ? (
             <a href={mapsUrl(leg, shown)} target="_blank" rel="noopener noreferrer" className={STRIP}>
               <span className="flex min-w-0 flex-wrap items-center gap-x-1.5">{summary}</span>
@@ -312,7 +322,17 @@ export function RouteSheet({
           </button>
         </div>
 
-        {leg.transit
+        {shown === "flight" ? (
+          <p className="flex items-center gap-3 rounded-[12px] border border-line bg-surface px-3.5 py-3 text-[14px]">
+            <Icon d={PLANE} />
+            <span>
+              <span className="font-semibold">Flight</span>
+              <span className="block text-[12px] text-muted">Two airports far apart, so there’s no route to look up.</span>
+            </span>
+          </p>
+        ) : null}
+
+        {shown === "flight" ? null : leg.transit
           ? option(
               "transit",
               shown === "transit",
@@ -331,7 +351,7 @@ export function RouteSheet({
             ? option("transit", false, null, "No train found", "Walking is the way here", null)
             : option("transit", false, null, "Check trains", "Looks up the train once and saves it", () => choose("transit", "Showing the train"))}
 
-        {option(
+        {shown !== "flight" && option(
           "walk",
           shown === "walk" || shown === "far",
           <Icon d={WALK} />,
@@ -340,7 +360,7 @@ export function RouteSheet({
           shown === "walk" || shown === "far" ? null : () => choose("walk", "Showing the walk"),
         )}
 
-        {option(
+        {shown !== "flight" && option(
           "car",
           shown === "car",
           <Icon d={CAR} />,
@@ -359,7 +379,7 @@ export function RouteSheet({
           </p>
         )}
 
-        {shown !== "hidden" && (
+        {shown !== "hidden" && shown !== "flight" && (
           <a
             href={mapsUrl(leg, shown)}
             target="_blank"

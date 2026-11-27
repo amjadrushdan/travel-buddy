@@ -10,10 +10,37 @@ export const WALK_MAX = 12;
 /** Longer than this isn't a walk (Tokyo → Fuji): shown as "Too far to walk" unless a train helps. */
 export const WALK_FAR = 90;
 
-export type Shown = "walk" | "transit" | "car" | "hidden" | "far" | "none";
+export type Shown = "walk" | "transit" | "car" | "flight" | "hidden" | "far" | "none";
 
-export function shownAs(l: Pick<SavedLeg, "choice" | "walk_min" | "transit">): Shown {
-  if (l.choice === "hidden" || l.choice === "car") return l.choice;
+type Ends = Pick<SavedLeg, "from_place" | "to_place" | "from_lat" | "from_lng" | "to_lat" | "to_lng">;
+
+const AIRPORT = /airport|空港/i;
+/** Two airports at least this far apart are a flight, not a drive (Haneda → New Chitose). */
+const FLIGHT_KM = 100;
+
+/** Straight-line distance in km. */
+export function kmApart(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const r = Math.PI / 180;
+  const h =
+    Math.sin(((b.lat - a.lat) * r) / 2) ** 2 +
+    Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lng - a.lng) * r) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+
+export const bothAirports = (from: string | null | undefined, to: string | null | undefined) =>
+  AIRPORT.test(from ?? "") && AIRPORT.test(to ?? "");
+
+/** Airport to a far-away airport: flown, so no walk, train or drive is looked up or shown. */
+export function isFlight(l: Ends): boolean {
+  if (!bothAirports(l.from_place, l.to_place)) return false;
+  if (l.from_lat == null || l.from_lng == null || l.to_lat == null || l.to_lng == null) return false;
+  return kmApart({ lat: l.from_lat, lng: l.from_lng }, { lat: l.to_lat, lng: l.to_lng }) >= FLIGHT_KM;
+}
+
+export function shownAs(l: Pick<SavedLeg, "choice" | "walk_min" | "transit"> & Partial<Ends>): Shown {
+  if (l.choice === "hidden") return "hidden";
+  if (l.from_place !== undefined && isFlight(l as Ends)) return "flight";
+  if (l.choice === "car") return "car";
   const w = l.walk_min;
   const t = l.transit?.minutes ?? null;
   const walk: Shown = w == null ? "none" : w > WALK_FAR ? "far" : "walk";
@@ -32,7 +59,7 @@ export function wantsTransit(l: Pick<SavedLeg, "choice" | "walk_min" | "transit_
   return l.choice === "auto" && l.walk_min != null && l.walk_min > WALK_MAX;
 }
 
-export function minutesShown(l: Pick<SavedLeg, "choice" | "walk_min" | "transit" | "drive_min">): number | null {
+export function minutesShown(l: Pick<SavedLeg, "choice" | "walk_min" | "transit" | "drive_min"> & Partial<Ends>): number | null {
   const s = shownAs(l);
   if (s === "walk") return l.walk_min;
   if (s === "transit") return l.transit?.minutes ?? null;
@@ -94,7 +121,7 @@ export type DaySpend = { fares: Record<string, number>; tolls: Record<string, nu
  * What the day's shown routes cost: train fares (per person) and road tolls (per car), by
  * currency. A train leg with no fare counts as unknown, so the total can say it's at least that.
  */
-export function daySpend(legs: Pick<SavedLeg, "choice" | "walk_min" | "transit" | "toll" | "toll_currency">[]): DaySpend {
+export function daySpend(legs: (Pick<SavedLeg, "choice" | "walk_min" | "transit" | "toll" | "toll_currency"> & Partial<Ends>)[]): DaySpend {
   const out: DaySpend = { fares: {}, tolls: {}, unknown: 0 };
   for (const l of legs) {
     const s = shownAs(l);
