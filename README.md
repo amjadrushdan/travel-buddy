@@ -6,6 +6,15 @@
 
 Built for a family trip to Japan. Nobody has to sign up: open the invite link, type your name, and you're in.
 
+<p align="center">
+  <img src="docs/screenshots/home.png" width="160" alt="Home: next flight as a boarding pass and what's next today">
+  <img src="docs/screenshots/plan.png" width="160" alt="Plan: a day with train routes and the day's fares">
+  <img src="docs/screenshots/routes.png" width="160" alt="Routes: line colours, changes and walks between stops">
+  <img src="docs/screenshots/flights.png" width="160" alt="Flights: each flight with live status">
+  <img src="docs/screenshots/stay.png" width="160" alt="Stays: check-in times, address and instructions">
+</p>
+<p align="center"><sub>Home · Plan · Routes · Flights · Stays (demo trip, made-up data)</sub></p>
+
 ---
 
 ## What it does
