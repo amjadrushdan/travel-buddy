@@ -10,7 +10,7 @@ Built for a family trip to Japan. Nobody has to sign up: open the invite link, t
 
 ## What it does
 
-| | |
+| Section | What you get |
 |---|---|
 | **Home** | Cover photo, countdown, the next flight as a boarding pass, today's stops and a currency converter. |
 | **Flights** | Every flight in the trip with live status: gate, terminal, delays. |
@@ -90,7 +90,7 @@ Without the optional keys, those features hide themselves and the rest of the ap
 
 ### Scripts
 
-| | |
+| Command | What it does |
 |---|---|
 | `npm run dev` | Start the dev server |
 | `npm run build` | Production build |
